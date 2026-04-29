@@ -4,63 +4,133 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/state/khata_provider.dart';
 import '../widgets/add_customer_dialog.dart';
-import 'customer_detail_screen.dart'; // Naya import add kiya
+import 'customer_detail_screen.dart';
 
-// Riverpod ka state read karne ke liye ConsumerWidget use hota hai
-class KhataScreen extends ConsumerWidget {
+// Search bar ko handle karne ke liye ise ConsumerStatefulWidget banaya hai
+class KhataScreen extends ConsumerStatefulWidget {
   const KhataScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Database se customers ka data yahan listen kar rahe hain
+  ConsumerState<KhataScreen> createState() => _KhataScreenState();
+}
+
+class _KhataScreenState extends ConsumerState<KhataScreen> {
+  // Search bar ke controllers
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final customerState = ref.watch(customerProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Customer Khata',
+          'Customer Ledger', // English update
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: const Color(0xFF0F172A), // Premium dark blue theme
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
-        color: const Color(0xFFF8FAFC), // Premium light background
-        child: customerState.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(child: Text('Error: $error')),
-          data: (customers) {
-            if (customers.isEmpty) {
-              return _buildEmptyState();
-            }
-            return ListView.builder(
+        color: const Color(0xFFF8FAFC),
+        child: Column(
+          children: [
+            // --- NAYA FEATURE: Search Bar ---
+            Padding(
               padding: const EdgeInsets.all(16.0),
-              itemCount: customers.length,
-              itemBuilder: (context, index) {
-                final customer = customers[index];
-                return _buildCustomerCard(context, customer);
-              },
-            );
-          },
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by name or phone...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                    icon: const Icon(Icons.clear, color: Colors.grey),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                      });
+                    },
+                  )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                ),
+              ),
+            ),
+
+            // --- Customer List ---
+            Expanded(
+              child: customerState.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => Center(child: Text('Error: $error')),
+                data: (customers) {
+
+                  // Filter logic: Name ya Phone match kare
+                  final filteredCustomers = customers.where((customer) {
+                    final nameMatch = customer.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                    final phoneMatch = customer.phone.contains(_searchQuery);
+                    return nameMatch || phoneMatch;
+                  }).toList();
+
+                  if (customers.isEmpty) {
+                    return _buildEmptyState();
+                  }
+
+                  if (filteredCustomers.isEmpty) {
+                    return const Center(
+                      child: Text('No customers match your search.',
+                          style: TextStyle(color: Colors.grey)),
+                    );
+                  }
+
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    itemCount: filteredCustomers.length,
+                    itemBuilder: (context, index) {
+                      final customer = filteredCustomers[index];
+                      return _buildCustomerCard(context, customer);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
-          // --- Popup open karne ka logic ---
           showDialog(
             context: context,
             barrierDismissible: true,
             builder: (context) => const AddCustomerDialog(),
           );
         },
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: const Color(0xFF10B981), // Premium Green
         icon: const Icon(Icons.person_add, color: Colors.white),
         label: const Text('Add Customer', style: TextStyle(color: Colors.white)),
       ),
     );
   }
 
-  // Agar database mein koi customer na ho
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -83,9 +153,7 @@ class KhataScreen extends ConsumerWidget {
     );
   }
 
-  // Individual Customer List Item
   Widget _buildCustomerCard(BuildContext context, dynamic customer) {
-    // Balance display logic (Positive = Lene hain, Negative = Dene hain)
     final bool isReceivable = customer.totalBalance >= 0;
     final String balanceText = 'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}';
     final Color balanceColor = isReceivable ? const Color(0xFF10B981) : Colors.red.shade600;
@@ -106,12 +174,12 @@ class KhataScreen extends ConsumerWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
           radius: 25,
           child: Text(
             customer.name[0].toUpperCase(),
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
+            style: const TextStyle(
+              color: Color(0xFF0F172A),
               fontWeight: FontWeight.bold,
               fontSize: 18,
             ),
@@ -149,13 +217,12 @@ class KhataScreen extends ConsumerWidget {
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: balanceColor),
             ),
             Text(
-              isReceivable ? 'Aap ne lene hain' : 'Aap ne dene hain',
+              isReceivable ? "You'll Get" : "You'll Give", // Updated to English
               style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
             ),
           ],
         ),
         onTap: () {
-          // --- UPDATED: Navigate to Detail Screen ---
           Navigator.push(
             context,
             MaterialPageRoute(

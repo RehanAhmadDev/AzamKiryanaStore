@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/customer_entity.dart';
 import '../../domain/entities/khata_entry_entity.dart';
 
+
 import '../state/state/khata_provider.dart';
 import '../widgets/add_transaction_dialog.dart';
-
 
 class CustomerDetailScreen extends ConsumerWidget {
   final CustomerEntity customer;
@@ -16,18 +16,33 @@ class CustomerDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final transactionState = ref.watch(transactionProvider(customer.id));
-    final bool isReceivable = customer.totalBalance >= 0;
+    final customerListState = ref.watch(customerProvider);
+
+    // --- 🛠️ BUG FIX: SAFE REAL-TIME BALANCE LOGIC ---
+    // Pehle hum by default purana customer set kar dete hain
+    CustomerEntity currentCustomer = customer;
+
+    // Agar provider mein naya data mojood hai, to safe tareeqay se dhoondte hain
+    if (customerListState.value != null) {
+      final matches = customerListState.value!.where((c) => c.id == customer.id).toList();
+      if (matches.isNotEmpty) {
+        currentCustomer = matches.first; // Naya data yahan assign ho jayega
+      }
+    }
+    // ------------------------------------------------
+
+    final bool isReceivable = currentCustomer.totalBalance >= 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: Text(customer.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(currentCustomer.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
-          _buildBalanceHeader(isReceivable),
+          _buildBalanceHeader(currentCustomer, isReceivable),
 
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -70,9 +85,8 @@ class CustomerDetailScreen extends ConsumerWidget {
 
   Widget _buildTransactionItem(KhataEntryEntity entry) {
     final bool isGave = entry.type == EntryType.gave;
-    final String dateStr = DateFormat('dd MMM yyyy').format(entry.date);
+    final String dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(entry.date);
 
-    // Notes ka Null Check yahan lagaya hai
     final String displayNotes = (entry.notes != null && entry.notes!.isNotEmpty)
         ? entry.notes!
         : (isGave ? "Gave" : "Got");
@@ -107,7 +121,8 @@ class CustomerDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBalanceHeader(bool isReceivable) {
+  // Header update kar diya hai jo ab isReceivable aur currentCustomer received karega
+  Widget _buildBalanceHeader(CustomerEntity currentCustomer, bool isReceivable) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -126,7 +141,7 @@ class CustomerDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
+            'Rs. ${currentCustomer.totalBalance.abs().toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 36,
               fontWeight: FontWeight.w900,
