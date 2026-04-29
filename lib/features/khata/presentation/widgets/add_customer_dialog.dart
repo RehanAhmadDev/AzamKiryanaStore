@@ -19,6 +19,13 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
   String _selectedType = 'customer';
 
   @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
@@ -81,6 +88,7 @@ class _AddCustomerDialogState extends ConsumerState<AddCustomerDialog> {
                   phone: _phoneController.text,
                   type: _selectedType,
                   createdAt: DateTime.now(),
+                  totalBalance: 0.0, // Default balance
                 );
 
                 await ref.read(customerProvider.notifier).addCustomer(newCustomer);
