@@ -7,6 +7,7 @@ import '../../domain/entities/khata_entry_entity.dart';
 
 import '../state/state/khata_provider.dart';
 import '../widgets/add_transaction_dialog.dart';
+import 'pdf_preview_screen.dart'; // Naya import jo error khatam karega
 
 class CustomerDetailScreen extends ConsumerWidget {
   final CustomerEntity customer;
@@ -18,18 +19,15 @@ class CustomerDetailScreen extends ConsumerWidget {
     final transactionState = ref.watch(transactionProvider(customer.id));
     final customerListState = ref.watch(customerProvider);
 
-    // --- 🛠️ BUG FIX: SAFE REAL-TIME BALANCE LOGIC ---
-    // Pehle hum by default purana customer set kar dete hain
+    // --- 🛠️ SAFE REAL-TIME BALANCE LOGIC ---
     CustomerEntity currentCustomer = customer;
 
-    // Agar provider mein naya data mojood hai, to safe tareeqay se dhoondte hain
     if (customerListState.value != null) {
       final matches = customerListState.value!.where((c) => c.id == customer.id).toList();
       if (matches.isNotEmpty) {
-        currentCustomer = matches.first; // Naya data yahan assign ho jayega
+        currentCustomer = matches.first;
       }
     }
-    // ------------------------------------------------
 
     final bool isReceivable = currentCustomer.totalBalance >= 0;
 
@@ -39,6 +37,27 @@ class CustomerDetailScreen extends ConsumerWidget {
         title: Text(currentCustomer.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          // --- 🛠️ FIXED: Ab navigation ho rahi hai purana function call nahi ho raha ---
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+            tooltip: 'View & Print PDF',
+            onPressed: () {
+              final entries = transactionState.value ?? [];
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PdfPreviewScreen(
+                    customer: currentCustomer,
+                    entries: entries,
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -121,7 +140,6 @@ class CustomerDetailScreen extends ConsumerWidget {
     );
   }
 
-  // Header update kar diya hai jo ab isReceivable aur currentCustomer received karega
   Widget _buildBalanceHeader(CustomerEntity currentCustomer, bool isReceivable) {
     return Container(
       width: double.infinity,
