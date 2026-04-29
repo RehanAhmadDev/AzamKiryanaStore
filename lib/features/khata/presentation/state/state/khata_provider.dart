@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/datasources/khata_supabase_data_source.dart';
 import '../../../data/repositories_impl/khata_repository_impl.dart';
 import '../../../domain/entities/customer_entity.dart';
-import '../../../domain/entities/khata_entry_entity.dart'; // Naya Import
+import '../../../domain/entities/khata_entry_entity.dart';
 import '../../../domain/repositories/khata_repository.dart';
 
 final khataRemoteDataSourceProvider = Provider<KhataRemoteDataSource>((ref) {
@@ -14,6 +14,7 @@ final khataRepositoryProvider = Provider<KhataRepository>((ref) {
   return KhataRepositoryImpl(remoteDataSource: dataSource);
 });
 
+// --- Customer List Notifier ---
 class CustomerNotifier extends StateNotifier<AsyncValue<List<CustomerEntity>>> {
   final KhataRepository repository;
 
@@ -40,16 +41,11 @@ class CustomerNotifier extends StateNotifier<AsyncValue<List<CustomerEntity>>> {
     }
   }
 
-  // --- NAYA FUNCTION: Transaction Add karne ke liye ---
   Future<void> addEntry(KhataEntryEntity entry) async {
     try {
-      // 1. Cloud par entry save karo aur balance update karo
       await repository.addKhataEntry(entry);
-
-      // 2. UI ki list ko refresh karo taake naya balance nazar aaye
       await loadCustomers();
     } catch (e, stackTrace) {
-      // Error handle karne ke liye aap yahan logging add kar sakte hain
       print("Error adding entry: $e");
     }
   }
@@ -58,4 +54,31 @@ class CustomerNotifier extends StateNotifier<AsyncValue<List<CustomerEntity>>> {
 final customerProvider = StateNotifierProvider<CustomerNotifier, AsyncValue<List<CustomerEntity>>>((ref) {
   final repository = ref.read(khataRepositoryProvider);
   return CustomerNotifier(repository: repository);
+});
+
+// --- NEW: Transaction History Notifier ---
+// Yeh kisi specific customer ki saari entries fetch karne ke liye hai
+class TransactionNotifier extends StateNotifier<AsyncValue<List<KhataEntryEntity>>> {
+  final KhataRepository repository;
+  final String customerId;
+
+  TransactionNotifier({required this.repository, required this.customerId}) : super(const AsyncValue.loading()) {
+    loadTransactions();
+  }
+
+  Future<void> loadTransactions() async {
+    try {
+      state = const AsyncValue.loading();
+      final entries = await repository.getKhataEntriesByCustomerId(customerId);
+      state = AsyncValue.data(entries);
+    } catch (e, stackTrace) {
+      state = AsyncValue.error(e, stackTrace);
+    }
+  }
+}
+
+// Family provider use kiya hai taake customerId pass ki ja sake
+final transactionProvider = StateNotifierProvider.family<TransactionNotifier, AsyncValue<List<KhataEntryEntity>>, String>((ref, customerId) {
+  final repository = ref.read(khataRepositoryProvider);
+  return TransactionNotifier(repository: repository, customerId: customerId);
 });

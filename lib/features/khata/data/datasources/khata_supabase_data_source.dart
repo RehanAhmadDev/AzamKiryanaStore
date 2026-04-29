@@ -7,17 +7,16 @@ abstract class KhataRemoteDataSource {
   Future<void> addCustomer(CustomerModel customer);
   Future<List<CustomerModel>> getAllCustomers();
   Future<void> addKhataEntry(KhataEntryModel entry);
-  Future<List<KhataEntryModel>> getEntriesForCustomer(String customerId);
+  // Method name updated to match the flow
+  Future<List<KhataEntryModel>> getKhataEntriesByCustomerId(String customerId);
   Future<void> updateCustomerBalance(String customerId, double newBalance);
 }
 
 class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
-  // Supabase client ka instance
   final _supabase = Supabase.instance.client;
 
   @override
   Future<void> addCustomer(CustomerModel customer) async {
-    // Supabase DB mein snake_case columns use kiye hain, is liye hum directly map kar rahe hain
     await _supabase.from('customers').insert({
       'id': customer.id,
       'name': customer.name,
@@ -35,7 +34,6 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
         .select()
         .order('created_at', ascending: false);
 
-    // Supabase response ko apne Dart Model mein convert kar rahe hain
     return response.map((map) => CustomerModel(
       id: map['id'],
       name: map['name'],
@@ -48,7 +46,6 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
 
   @override
   Future<void> addKhataEntry(KhataEntryModel entry) async {
-    // 1. Entry ko save karna
     await _supabase.from('khata_entries').insert({
       'id': entry.id,
       'customer_id': entry.customerId,
@@ -58,7 +55,6 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
       'date': entry.date.toIso8601String(),
     });
 
-    // 2. Customer ka current balance Cloud se get karna
     final customerData = await _supabase
         .from('customers')
         .select('total_balance')
@@ -67,12 +63,9 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
 
     if (customerData.isNotEmpty) {
       double currentBalance = (customerData['total_balance'] as num).toDouble();
-
-      // Lene hain (+ve), Dene hain (-ve)
       double amountImpact = entry.type == EntryType.gave ? entry.amount : -entry.amount;
       double newBalance = currentBalance + amountImpact;
 
-      // 3. Updated balance Cloud par save karna
       await _supabase
           .from('customers')
           .update({'total_balance': newBalance})
@@ -80,8 +73,9 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
     }
   }
 
+  // Implementation method name updated
   @override
-  Future<List<KhataEntryModel>> getEntriesForCustomer(String customerId) async {
+  Future<List<KhataEntryModel>> getKhataEntriesByCustomerId(String customerId) async {
     final List<dynamic> response = await _supabase
         .from('khata_entries')
         .select()

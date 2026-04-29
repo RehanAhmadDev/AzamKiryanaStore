@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../domain/entities/customer_entity.dart';
+import '../../domain/entities/khata_entry_entity.dart';
 
-class CustomerDetailScreen extends StatelessWidget {
+import '../state/state/khata_provider.dart';
+import '../widgets/add_transaction_dialog.dart';
+
+
+class CustomerDetailScreen extends ConsumerWidget {
   final CustomerEntity customer;
 
   const CustomerDetailScreen({super.key, required this.customer});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final transactionState = ref.watch(transactionProvider(customer.id));
     final bool isReceivable = customer.totalBalance >= 0;
 
     return Scaffold(
@@ -19,7 +27,6 @@ class CustomerDetailScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Top Balance Card
           _buildBalanceHeader(isReceivable),
 
           const Padding(
@@ -33,15 +40,68 @@ class CustomerDetailScreen extends StatelessWidget {
             ),
           ),
 
-          // Transactions List (Abhi ke liye empty state)
-          const Expanded(
-            child: Center(
-              child: Text('No transactions yet.', style: TextStyle(color: Colors.grey)),
+          Expanded(
+            child: transactionState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stack) => Center(child: Text('Error: $error')),
+              data: (entries) {
+                if (entries.isEmpty) {
+                  return const Center(
+                    child: Text('No transactions yet.', style: TextStyle(color: Colors.grey)),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    return _buildTransactionItem(entry);
+                  },
+                );
+              },
             ),
           ),
 
-          // Bottom Action Buttons (DIVE / LIYE)
           _buildActionButtons(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(KhataEntryEntity entry) {
+    final bool isGave = entry.type == EntryType.gave;
+    final String dateStr = DateFormat('dd MMM yyyy').format(entry.date);
+
+    // Notes ka Null Check yahan lagaya hai
+    final String displayNotes = (entry.notes != null && entry.notes!.isNotEmpty)
+        ? entry.notes!
+        : (isGave ? "Gave" : "Got");
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(displayNotes, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(dateStr, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            ],
+          ),
+          Text(
+            'Rs. ${entry.amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isGave ? Colors.red.shade700 : Colors.green.shade700,
+            ),
+          ),
         ],
       ),
     );
@@ -61,7 +121,7 @@ class CustomerDetailScreen extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            isReceivable ? 'Aap ne lene hain' : 'Aap ne dene hain',
+            isReceivable ? "You'll Get" : "You'll Give",
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
           const SizedBox(height: 8),
@@ -87,26 +147,36 @@ class CustomerDetailScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // DIVE (Gave) Button
           Expanded(
             child: _actionButton(
-              label: 'DIVE (Gave)',
+              label: 'DIYE (Gave)',
               color: Colors.red.shade600,
               icon: Icons.remove_circle_outline,
               onTap: () {
-                // TODO: Open Add Transaction Dialog (Type: Gave)
+                showDialog(
+                  context: context,
+                  builder: (context) => AddTransactionDialog(
+                    customerId: customer.id,
+                    isGave: true,
+                  ),
+                );
               },
             ),
           ),
           const SizedBox(width: 16),
-          // LIYE (Got) Button
           Expanded(
             child: _actionButton(
               label: 'LIYE (Got)',
               color: const Color(0xFF10B981),
               icon: Icons.add_circle_outline,
               onTap: () {
-                // TODO: Open Add Transaction Dialog (Type: Got)
+                showDialog(
+                  context: context,
+                  builder: (context) => AddTransactionDialog(
+                    customerId: customer.id,
+                    isGave: false,
+                  ),
+                );
               },
             ),
           ),
