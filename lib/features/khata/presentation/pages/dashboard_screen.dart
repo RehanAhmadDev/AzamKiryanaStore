@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
-import '../../../pos/presentation/pages/invoices_receipts_screen.dart'; // --- 🚀 NAYA IMPORT ADD KIYA HAI ---
+import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
+import '../../../khata/presentation/pages/receivables_screen.dart'; // --- 🚀 NAYA IMPORT ADD KIYA HAI ---
 import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../pos/presentation/state/pos_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -244,7 +245,18 @@ class DashboardScreen extends ConsumerWidget {
                 );
               }
           ),
-          // --- 🚀 NAYA DRAWER ITEM ADD KIYA HAI YAHAN ---
+          // --- 🚀 YAHAN RECEIVABLES KI SCREEN ADD KI HAI ---
+          _drawerItem(
+              icon: Icons.account_balance_wallet_rounded,
+              title: 'Receivables',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ReceivablesScreen())
+                );
+              }
+          ),
           _drawerItem(
               icon: Icons.receipt_long_rounded,
               title: 'Receipts / Invoices',
