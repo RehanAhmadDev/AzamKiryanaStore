@@ -3,8 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/cart_provider.dart';
-import '../state/pos_provider.dart'; // Naya Import: Stock minus karne ke liye
+import '../state/pos_provider.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
+// Entity import karna zaroori hai
+import '../../../khata/domain/entities/khata_entry_entity.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -15,35 +17,27 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
-  bool _isLoading = false; // Loading state handle karne ke liye
+  bool _isLoading = false;
 
   // --- 💰 FUNCTION: Handle Cash Payment ---
   Future<void> _processCashPayment() async {
     final cartItems = ref.read(cartProvider);
-
     setState(() => _isLoading = true);
 
     try {
-      // 1. Loop chala kar har item ka stock database se minus karein
       for (var item in cartItems) {
         await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
-      // TODO: Here we can save the sale to a general 'Sales' database table later
-
-      // 2. Clear the cart after successful payment
       ref.read(cartProvider.notifier).clearCart();
 
       if (context.mounted) {
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Payment Successful! Stock Updated.'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
-
-        // Go back to the Inventory/POS screen
         Navigator.pop(context);
       }
     } catch (e) {
@@ -125,38 +119,43 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  // --- 🛠️ FUNCTION: Confirm Khata Sale ---
+  // --- 🛠️ FUNCTION: Confirm Khata Sale (FIXED) ---
   Future<void> _confirmKhataSale(dynamic customer, double totalAmount) async {
-    Navigator.pop(context); // Bottom sheet band karein
+    Navigator.pop(context);
 
     final cartItems = ref.read(cartProvider);
-
     setState(() => _isLoading = true);
 
     try {
-      // 1. Loop chala kar pehle inventory ka stock minus karein
+      // 1. Inventory se stock kam karein
       for (var item in cartItems) {
         await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
-      // 2. TODO: KHATA ENTRY LINKING
-      // Rehan bhai: Stock minus ho gaya, ab yahan Customer ki Khata entry dalni hai.
-      // Mujhe apna Khata Transaction Provider bhejein taake main is line ko theek kar sakun.
-      // Example: await ref.read(transactionProvider(customer.id).notifier).addTransaction(totalAmount, isGave: true, notes: "POS Sale");
+      // 2. Khata mein entry add karein
+
+      // 2. Khata mein entry add karein (Fixed for your EntryType)
+      final entry = KhataEntryEntity(
+        id: '',
+        customerId: customer.id,
+        amount: totalAmount,
+        type: EntryType.gave, // 'isGave: true' ki jagah 'type' use karein
+        date: DateTime.now(),
+        notes: 'POS Sale: ${cartItems.length} items', // 'description' ki jagah 'notes'
+      );
+
+      await ref.read(customerProvider.notifier).addEntry(entry);
 
       // 3. Cart clear karein
       ref.read(cartProvider.notifier).clearCart();
 
       if (context.mounted) {
-        // Success Message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Bill added to ${customer.name}\'s Khata! Stock Updated.'),
+            content: Text('Bill added to ${customer.name}\'s Khata!'),
             backgroundColor: const Color(0xFFF59E0B),
           ),
         );
-
-        // Wapis POS Screen par jayein
         Navigator.pop(context);
       }
     } catch (e) {
@@ -182,7 +181,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      // Stack use kiya hai taake process ke dauran screen par loading indicator aa sakay
       body: Stack(
         children: [
           cartList.isEmpty
@@ -191,7 +189,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           )
               : Column(
             children: [
-              // --- 📝 BILL SUMMARY LIST ---
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -232,7 +229,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
               ),
 
-              // --- 💰 TOTAL AMOUNT & PAYMENT BUTTONS ---
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -269,7 +265,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       const SizedBox(height: 20),
                       Row(
                         children: [
-                          // KHATA BUTTON
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
@@ -283,7 +278,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          // CASH BUTTON
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
@@ -305,7 +299,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ],
           ),
 
-          // Loading Overlay
           if (_isLoading)
             Container(
               color: Colors.black.withOpacity(0.3),
