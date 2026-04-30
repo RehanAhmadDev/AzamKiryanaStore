@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../utils/pdf_generator.dart';
+
 
 class InvoicesReceiptsScreen extends ConsumerStatefulWidget {
   const InvoicesReceiptsScreen({super.key});
@@ -23,7 +25,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
     _fetchSales();
   }
 
-  // --- 🌐 DATABASE SE SALES FETCH KARNA ---
   Future<void> _fetchSales() async {
     setState(() => _isLoading = true);
     try {
@@ -41,103 +42,119 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // --- 📅 DATE FORMATTER ---
   String _formatDate(String isoString) {
     DateTime date = DateTime.parse(isoString).toLocal();
     return "${date.day}/${date.month}/${date.year}";
   }
 
-  // --- 🧾 RECEIPT DETAILS POPUP (Jo video mein tha) ---
   void _showReceiptDetails(Map<String, dynamic> sale) {
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.receipt_long, size: 48, color: Color(0xFF0F172A)),
-                const SizedBox(height: 16),
-                const Text('Receipt Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(
-                  'Invoice: #INV-${sale['id'].toString().substring(0, 8).toUpperCase()}',
-                  style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+          child: Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                const Divider(height: 32),
-
-                _buildReceiptRow('Items Count:', '${sale['items_count']} Items'),
-                const SizedBox(height: 8),
-                _buildReceiptRow('Sale Type:', sale['sale_type'].toString().toUpperCase()),
-                const SizedBox(height: 8),
-                _buildReceiptRow('Date:', _formatDate(sale['created_at'])),
-                const SizedBox(height: 16),
-
-                // Total Bill Area
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: _buildReceiptRow(
-                    'Total Bill:',
-                    'Rs. ${(sale['total_amount'] as num).toStringAsFixed(0)}',
-                    isTotal: true,
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Buttons
-                Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Close', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.receipt_long, size: 48, color: Color(0xFF0F172A)),
+                    const SizedBox(height: 16),
+                    const Text('Receipt Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Invoice: #INV-${sale['id'].toString().substring(0, 8).toUpperCase()}',
+                      style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+                    ),
+                    const Divider(height: 32),
+
+                    _buildReceiptRow('Items Count:', '${sale['items_count']} Items'),
+                    const SizedBox(height: 8),
+                    _buildReceiptRow('Sale Type:', sale['sale_type'].toString().toUpperCase()),
+                    const SizedBox(height: 8),
+                    _buildReceiptRow('Date:', _formatDate(sale['created_at'])),
+                    const SizedBox(height: 16),
+
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: _buildReceiptRow(
+                        'Total Bill:',
+                        'Rs. ${(sale['total_amount'] as num).toStringAsFixed(0)}',
+                        isTotal: true,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0F172A),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    const SizedBox(height: 24),
+
+                    // --- 🚀 NAYE DONO BUTTONS ---
+                    Row(
+                      children: [
+                        // Button 1: Direct Download
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              side: const BorderSide(color: Color(0xFF10B981), width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(context); // Close dialog
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading Bill...')));
+                              await ReceiptPdfGenerator.downloadReceiptSilent(sale);
+                              if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved to Downloads!'), backgroundColor: Color(0xFF10B981)));
+                            },
+                            icon: const Icon(Icons.download, color: Color(0xFF10B981), size: 18),
+                            label: const Text('Download', style: TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold)),
+                          ),
                         ),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          // --- AGLA STEP YAHAN SE HOGA ---
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('PDF Print Feature Coming Next!'), backgroundColor: Color(0xFF10B981)),
-                          );
-                        },
-                        icon: const Icon(Icons.print, color: Colors.white, size: 18),
-                        label: const Text('Print PDF', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ),
+                        const SizedBox(width: 12),
+
+                        // Button 2: Android Preview
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () async {
+                              Navigator.pop(context); // Close dialog
+                              await ReceiptPdfGenerator.previewReceipt(sale);
+                            },
+                            icon: const Icon(Icons.visibility, color: Colors.white, size: 18),
+                            label: const Text('Preview', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+
+              // --- 🚀 CLOSE (X) BUTTON TOP RIGHT PAR ---
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.grey),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -170,7 +187,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
 
   @override
   Widget build(BuildContext context) {
-    // --- 🔍 FILTER LOGIC ---
     final filteredSales = _sales.where((sale) {
       final idString = sale['id'].toString().toLowerCase();
       return idString.contains(_searchQuery.toLowerCase());
@@ -185,7 +201,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
       ),
       body: Column(
         children: [
-          // --- 🔍 SEARCH BAR ---
           Container(
             color: Colors.white,
             padding: const EdgeInsets.all(16.0),
@@ -204,8 +219,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
               ),
             ),
           ),
-
-          // --- 📋 SALES LIST ---
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
@@ -226,8 +239,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                 itemBuilder: (context, index) {
                   final sale = filteredSales[index];
                   final isCash = sale['sale_type'] == 'cash';
-
-                  // UUID ko chota karke Invoice No bana rahe hain
                   final shortId = sale['id'].toString().substring(0, 8).toUpperCase();
 
                   return Card(
@@ -244,7 +255,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                         padding: const EdgeInsets.all(16.0),
                         child: Row(
                           children: [
-                            // Left Icon Container
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
@@ -257,8 +267,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                               ),
                             ),
                             const SizedBox(width: 16),
-
-                            // Right Details
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
