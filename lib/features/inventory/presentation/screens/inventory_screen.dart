@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../data/repositories/inventory_repository_impl.dart';
+import 'product_form_screen.dart'; // 🚀 UPDATE: Nayi form screen ka import
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({Key? key}) : super(key: key);
@@ -36,9 +37,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading products: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading products: $e')),
+        );
+      }
     }
   }
 
@@ -58,7 +61,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _products.isEmpty
-      // 🚀 UPDATE: Proper English UI Text
           ? const Center(
         child: Text(
           'No inventory items found.\nTap the + button to add a new item.',
@@ -106,8 +108,19 @@ class _InventoryScreenState extends State<InventoryScreen> {
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.edit, color: Colors.blue),
-                onPressed: () {
-                  // TODO: Navigate to Edit Product Form
+                onPressed: () async {
+                  // 🚀 UPDATE: Edit Product Form par bhejna
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ProductFormScreen(product: product),
+                    ),
+                  );
+
+                  // Agar item update hua hai to list refresh karein
+                  if (result == true) {
+                    _loadProducts();
+                  }
                 },
               ),
             ),
@@ -115,8 +128,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to Add Product Form
+        onPressed: () async {
+          // 🚀 UPDATE: Add Product Form par bhejna
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ProductFormScreen()),
+          );
+
+          // Agar naya item add hua hai to list refresh karein
+          if (result == true) {
+            _loadProducts();
+          }
         },
         icon: const Icon(Icons.add),
         label: const Text('Add Item'),
