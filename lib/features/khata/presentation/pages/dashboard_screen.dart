@@ -3,12 +3,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
 import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+
+// 🚀 NEW IMPORT: Nayi Inventory Screen ke liye (Conflict se bachne ke liye 'stock' use kiya hai)
+import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -65,7 +69,6 @@ class DashboardScreen extends ConsumerWidget {
                         double khataSales = snapshot.data?['khata'] ?? 0;
                         double totalCombinedSales = cashSales + khataSales;
 
-                        // 🚀 NEW LOGIC: Wasooli vs Adayigi calculation
                         double totalToReceive = 0;
                         double totalToPay = 0;
 
@@ -97,7 +100,6 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Main Sales Card
                                 _buildGlassCard(
                                   title: 'Total Sales (This Month)',
                                   amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
@@ -106,7 +108,6 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Wasooli (Receivables) - Green
                                 _buildGlassCard(
                                   title: 'Total Wasooli (To Receive)',
                                   amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
@@ -115,7 +116,6 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Adayigi (Payables) - Red
                                 _buildGlassCard(
                                   title: 'Total Adayigi (To Pay)',
                                   amount: 'Rs. ${totalToPay.toStringAsFixed(0)}',
@@ -124,7 +124,6 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
-                                // Active Customers Card
                                 _buildGlassCard(
                                   title: 'Active Customers',
                                   amount: customers.length.toString(),
@@ -150,9 +149,9 @@ class DashboardScreen extends ConsumerWidget {
   Widget _buildPremiumHeader(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A), // Modern Dark Blue
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        color: Color(0xFF0F172A),
+        borderRadius: BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
         ),
@@ -248,9 +247,9 @@ class DashboardScreen extends ConsumerWidget {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          DrawerHeader(
-            decoration: const BoxDecoration(color: Color(0xFF0F172A)),
-            child: const Column(
+          const DrawerHeader(
+            decoration: BoxDecoration(color: Color(0xFF0F172A)),
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.storefront, color: Colors.white, size: 48),
@@ -279,7 +278,7 @@ class DashboardScreen extends ConsumerWidget {
                 Navigator.pop(context);
                 Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))
+                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true)) // Old POS Screen
                 );
               }
           ),
@@ -288,9 +287,10 @@ class DashboardScreen extends ConsumerWidget {
               title: 'Inventory Management',
               onTap: () {
                 Navigator.pop(context);
+                // 🚀 UPDATE: Yahan ab nayi wali Inventory Screen khulegi!
                 Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: false))
+                    MaterialPageRoute(builder: (context) => const stock.InventoryScreen())
                 );
               }
           ),
