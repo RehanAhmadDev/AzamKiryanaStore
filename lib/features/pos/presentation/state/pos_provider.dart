@@ -35,4 +35,34 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
       rethrow;
     }
   }
+
+  // --- 🛠️ NEW: Stock Deduction Function ---
+  // Sale hone ke baad item ka stock kam karne ke liye
+  Future<void> reduceStock(String productId, int quantitySold) async {
+    try {
+      // 1. Fetch current stock from database
+      final response = await _supabase
+          .from('products')
+          .select('stock')
+          .eq('id', productId)
+          .single();
+
+      final currentStock = response['stock'] as int;
+
+      // 2. Calculate new stock (Ensure it doesn't go below 0)
+      int newStock = currentStock - quantitySold;
+      if (newStock < 0) newStock = 0;
+
+      // 3. Update the stock in database
+      await _supabase
+          .from('products')
+          .update({'stock': newStock})
+          .eq('id', productId);
+
+      // 4. Refresh the UI list
+      await fetchProducts();
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
