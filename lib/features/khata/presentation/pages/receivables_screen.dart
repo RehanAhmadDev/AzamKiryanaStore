@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../state/state/khata_provider.dart'; // Ensure this matches your project's provider path
+import '../state/state/khata_provider.dart';
+import 'customer_ledger_screen.dart';
 
 class ReceivablesScreen extends ConsumerStatefulWidget {
   const ReceivablesScreen({super.key});
@@ -17,7 +18,7 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
   @override
   void initState() {
     super.initState();
-    // Screen open hote hi latest data load karega
+    // Screen load hote hi latest data fetch karne ke liye
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(customerProvider.notifier).loadCustomers();
     });
@@ -50,7 +51,7 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
           double totalReceivables = 0;
           double totalPayables = 0;
 
-          // Calculate totals from the provider data
+          // Calculations based on totalBalance
           for (var customer in customers) {
             if (customer.totalBalance > 0) {
               totalReceivables += customer.totalBalance;
@@ -59,7 +60,6 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
             }
           }
 
-          // Filter logic
           final filteredCustomers = customers.where((customer) {
             final name = customer.name.toLowerCase();
             final phone = customer.phone.toLowerCase();
@@ -75,7 +75,6 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
-                    // Green Card - Total Receivables
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(16),
@@ -100,7 +99,6 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Red Card - Total Payables
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.all(16),
@@ -233,8 +231,12 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                             ],
                           ),
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$name\'s Ledger Coming Soon!')),
+                            // 🚀 Professional Navigation with CustomerEntity
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CustomerLedgerScreen(customer: customer),
+                              ),
                             );
                           },
                         ),
