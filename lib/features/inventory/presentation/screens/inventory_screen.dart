@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../data/repositories/inventory_repository_impl.dart';
 import 'product_form_screen.dart';
+import 'barcode_scanner_view.dart'; // 🚀 NEW: Scanner view import
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({Key? key}) : super(key: key);
@@ -21,16 +22,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
   List<ProductEntity> _filteredProducts = [];
   bool _isLoading = true;
 
+  double _totalStockValue = 0;
+  double _totalPotentialProfit = 0;
+  int _lowStockCount = 0;
+
   @override
   void initState() {
     super.initState();
     _loadProducts();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadProducts() async {
     setState(() => _isLoading = true);
     try {
       final products = await _repository.getProducts();
+      _calculateAnalytics(products);
       setState(() {
         _allProducts = products;
         _filteredProducts = products;
@@ -46,6 +58,22 @@ class _InventoryScreenState extends State<InventoryScreen> {
     }
   }
 
+  void _calculateAnalytics(List<ProductEntity> products) {
+    double stockValue = 0;
+    double potentialProfit = 0;
+    int lowStock = 0;
+
+    for (var p in products) {
+      stockValue += (p.purchasePrice * p.stock);
+      potentialProfit += ((p.salePrice - p.purchasePrice) * p.stock);
+      if (p.isLowStock) lowStock++;
+    }
+
+    _totalStockValue = stockValue;
+    _totalPotentialProfit = potentialProfit;
+    _lowStockCount = lowStock;
+  }
+
   void _filterProducts(String query) {
     setState(() {
       _filteredProducts = _allProducts.where((product) {
@@ -56,10 +84,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
   }
 
+  // 🚀 NEW: Function to handle scanning
+  Future<void> _onScanPressed() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerView()),
+    );
+
+    if (scannedCode != null && scannedCode.isNotEmpty) {
+      _searchController.text = scannedCode;
+      _filterProducts(scannedCode);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Modern light background
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFF0F172A),
@@ -84,7 +125,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       ),
       body: Column(
         children: [
-          // 🚀 Modern Search Header
+          // Modern Search Header with Scanner
           Container(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
             decoration: const BoxDecoration(
@@ -94,37 +135,88 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 bottomRight: Radius.circular(30),
               ),
             ),
-            child: Container(
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _filterProducts,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search products...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                  prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                    onPressed: () {
-                      _searchController.clear();
-                      _filterProducts('');
-                    },
-                  )
-                      : null,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      onChanged: _filterProducts,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Search products...',
+                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                        suffixIcon: _searchController.text.isNotEmpty
+                            ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            _filterProducts('');
+                          },
+                        )
+                            : null,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 10),
+                // 🚀 NEW: Scanner Button
+                GestureDetector(
+                  onTap: _onScanPressed,
+                  child: Container(
+                    height: 50,
+                    width: 50,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981), // Modern Green
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // 🚀 Inventory List
+          if (!_isLoading && _allProducts.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStatChip(
+                        'Stock Value',
+                        'Rs. ${_totalStockValue.toStringAsFixed(0)}',
+                        const Color(0xFF6366F1),
+                        Icons.account_balance_wallet_rounded
+                    ),
+                    const SizedBox(width: 12),
+                    _buildStatChip(
+                        'Potential Profit',
+                        'Rs. ${_totalPotentialProfit.toStringAsFixed(0)}',
+                        const Color(0xFF10B981),
+                        Icons.trending_up_rounded
+                    ),
+                    const SizedBox(width: 12),
+                    _buildStatChip(
+                        'Low Stock Items',
+                        '$_lowStockCount Items',
+                        const Color(0xFFEF4444),
+                        Icons.warning_amber_rounded
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
@@ -156,9 +248,47 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
+  Widget _buildStatChip(String label, String value, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: color.withOpacity(0.1), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+              Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductCard(ProductEntity product) {
     final bool isLow = product.isLowStock;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -187,7 +317,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Product Info
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,8 +345,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     ],
                   ),
                 ),
-
-                // Stock Badge & Actions
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [

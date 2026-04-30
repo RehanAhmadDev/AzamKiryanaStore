@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../data/repositories/inventory_repository_impl.dart';
+import 'barcode_scanner_view.dart'; // 🚀 Scanner view import
 
 class ProductFormScreen extends StatefulWidget {
   final ProductEntity? product;
@@ -20,11 +21,12 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _repository = InventoryRepositoryImpl(Supabase.instance.client);
 
   bool _isLoading = false;
-  String _selectedCategory = 'Grocery'; // Default category
+  String _selectedCategory = 'Grocery';
 
   final List<String> _categories = ['Grocery', 'Drinks', 'Snacks', 'Bakery', 'Dairy', 'Other'];
 
   late TextEditingController _nameController;
+  late TextEditingController _barcodeController; // 🚀 Barcode controller
   late TextEditingController _purchasePriceController;
   late TextEditingController _salePriceController;
   late TextEditingController _stockController;
@@ -34,6 +36,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.product?.name ?? '');
+    _barcodeController = TextEditingController(text: widget.product?.barcode ?? ''); // Load barcode if editing
     _purchasePriceController = TextEditingController(text: widget.product != null ? widget.product!.purchasePrice.toStringAsFixed(0) : '');
     _salePriceController = TextEditingController(text: widget.product != null ? widget.product!.salePrice.toStringAsFixed(0) : '');
     _stockController = TextEditingController(text: widget.product?.stock.toString() ?? '');
@@ -47,11 +50,26 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _barcodeController.dispose();
     _purchasePriceController.dispose();
     _salePriceController.dispose();
     _stockController.dispose();
     _lowStockController.dispose();
     super.dispose();
+  }
+
+  // 🚀 Barcode scan karne ka function
+  Future<void> _scanBarcode() async {
+    final String? scannedCode = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerView()),
+    );
+
+    if (scannedCode != null && scannedCode.isNotEmpty) {
+      setState(() {
+        _barcodeController.text = scannedCode;
+      });
+    }
   }
 
   Future<void> _saveProduct() async {
@@ -65,6 +83,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final productToSave = ProductEntity(
         id: isEditMode ? widget.product!.id : const Uuid().v4(),
         name: _nameController.text.trim(),
+        barcode: _barcodeController.text.trim(), // 🚀 Barcode save ho raha hai
         purchasePrice: double.parse(_purchasePriceController.text.trim()),
         salePrice: double.parse(_salePriceController.text.trim()),
         stock: int.parse(_stockController.text.trim()),
@@ -114,7 +133,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
           : SingleChildScrollView(
         child: Column(
           children: [
-            // Header Decoration
             Container(
               height: 40,
               decoration: const BoxDecoration(
@@ -131,6 +149,34 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   children: [
                     _buildSectionTitle('Basic Information'),
                     _buildCard([
+                      // 🚀 Barcode Field with Scanner Button
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              controller: _barcodeController,
+                              label: 'Barcode Number',
+                              icon: Icons.qr_code_2_rounded,
+                              keyboardType: TextInputType.text,
+                              isRequired: false, // Optional if someone doesn't have barcode
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: _scanBarcode,
+                            child: Container(
+                              height: 55,
+                              width: 55,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
                       _buildTextField(
                         controller: _nameController,
                         label: 'Product Name',
@@ -256,6 +302,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     required IconData icon,
     required TextInputType keyboardType,
     String? prefixText,
+    bool isRequired = true,
   }) {
     return TextFormField(
       controller: controller,
@@ -269,7 +316,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5)),
       ),
-      validator: (val) => (val == null || val.trim().isEmpty) ? 'Required' : null,
+      validator: isRequired ? (val) => (val == null || val.trim().isEmpty) ? 'Required' : null : null,
     );
   }
 }

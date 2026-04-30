@@ -11,21 +11,21 @@ import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 
-// 🚀 NEW IMPORT: Nayi Inventory Screen ke liye (Conflict se bachne ke liye 'stock' use kiya hai)
+// Nayi Inventory Screen ka import
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
-  Future<Map<String, double>> _fetchSalesStats() async {
-    final supabase = Supabase.instance.client;
-    try {
-      final response = await supabase.from('sales').select('total_amount, sale_type');
-
+  // 🚀 REAL-TIME STREAM: Ye function ab sales ka live data sunega
+  Stream<Map<String, double>> _salesStream() {
+    return Supabase.instance.client
+        .from('sales')
+        .stream(primaryKey: ['id'])
+        .map((data) {
       double totalCash = 0;
       double totalKhata = 0;
-
-      for (var record in response) {
+      for (var record in data) {
         double amount = (record['total_amount'] as num).toDouble();
         if (record['sale_type'] == 'cash') {
           totalCash += amount;
@@ -34,9 +34,7 @@ class DashboardScreen extends ConsumerWidget {
         }
       }
       return {'cash': totalCash, 'khata': totalKhata};
-    } catch (e) {
-      return {'cash': 0, 'khata': 0};
-    }
+    });
   }
 
   @override
@@ -62,8 +60,9 @@ class DashboardScreen extends ConsumerWidget {
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
-                    return FutureBuilder<Map<String, double>>(
-                      future: _fetchSalesStats(),
+                    // 🚀 STREAM BUILDER: Real-time updates ke liye
+                    return StreamBuilder<Map<String, double>>(
+                      stream: _salesStream(),
                       builder: (context, snapshot) {
                         double cashSales = snapshot.data?['cash'] ?? 0;
                         double khataSales = snapshot.data?['khata'] ?? 0;
@@ -82,6 +81,7 @@ class DashboardScreen extends ConsumerWidget {
 
                         return RefreshIndicator(
                           onRefresh: () async {
+                            // Riverpod state refresh karne ke liye
                             await ref.read(customerProvider.notifier).loadCustomers();
                           },
                           child: SingleChildScrollView(
@@ -91,23 +91,42 @@ class DashboardScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const Text(
+                                  'Quick Actions',
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    _buildActionCard(
+                                      context,
+                                      title: 'Inventory',
+                                      icon: Icons.inventory_2_rounded,
+                                      color: const Color(0xFF6366F1),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    _buildActionCard(
+                                      context,
+                                      title: 'New Sale',
+                                      icon: Icons.point_of_sale_rounded,
+                                      color: const Color(0xFF10B981),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 32),
+                                const Text(
                                   'Business Overview',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0F172A),
-                                  ),
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                                 ),
                                 const SizedBox(height: 16),
-
                                 _buildGlassCard(
                                   title: 'Total Sales (This Month)',
                                   amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
                                   icon: Icons.trending_up,
-                                  color: const Color(0xFF10B981),
+                                  color: const Color(0xFF6366F1),
                                 ),
                                 const SizedBox(height: 16),
-
                                 _buildGlassCard(
                                   title: 'Total Wasooli (To Receive)',
                                   amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
@@ -115,7 +134,6 @@ class DashboardScreen extends ConsumerWidget {
                                   color: const Color(0xFF10B981),
                                 ),
                                 const SizedBox(height: 16),
-
                                 _buildGlassCard(
                                   title: 'Total Adayigi (To Pay)',
                                   amount: 'Rs. ${totalToPay.toStringAsFixed(0)}',
@@ -123,11 +141,10 @@ class DashboardScreen extends ConsumerWidget {
                                   color: const Color(0xFFEF4444),
                                 ),
                                 const SizedBox(height: 16),
-
                                 _buildGlassCard(
                                   title: 'Active Customers',
                                   amount: customers.length.toString(),
-                                  icon: Icons.people_alt,
+                                  icon: Icons.people_alt_rounded,
                                   color: const Color(0xFFF59E0B),
                                 ),
                               ],
@@ -146,41 +163,53 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
+  // --- UI Helper Widgets (ActionCard, PremiumHeader, GlassCard, Drawer) ---
+
+  Widget _buildActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 32),
+              const SizedBox(height: 8),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPremiumHeader(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: const BoxDecoration(
         color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(30),
-          bottomRight: Radius.circular(30),
-        ),
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 28),
+              onPressed: () => Scaffold.of(context).openDrawer(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 28),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Azam Kiryana',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
-                  ),
-                  Text(
-                    'Market Insight',
-                    style: TextStyle(fontSize: 13, color: Colors.white70),
-                  ),
-                ],
-              ),
+              Text('Azam Kiryana', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
+              Text('Market Insight', style: TextStyle(fontSize: 13, color: Colors.white70)),
             ],
           ),
         ],
@@ -189,54 +218,32 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildGlassCard({required String title, required String amount, required IconData icon, required Color color}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.8),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(amount, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color == const Color(0xFFEF4444) ? const Color(0xFFEF4444) : const Color(0xFF0F172A))),
+                Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+              ],
+            ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                        amount,
-                        style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: color == const Color(0xFFEF4444) ? const Color(0xFFEF4444) : const Color(0xFF0F172A)
-                        )
-                    ),
-                    Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 28),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+            child: Icon(icon, color: color, size: 28),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -258,64 +265,27 @@ class DashboardScreen extends ConsumerWidget {
               ],
             ),
           ),
-          _drawerItem(
-              icon: Icons.dashboard_rounded,
-              title: 'Dashboard',
-              onTap: () => Navigator.pop(context)
-          ),
-          _drawerItem(
-              icon: Icons.menu_book_rounded,
-              title: 'Customer Khata',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
-              }
-          ),
-          _drawerItem(
-              icon: Icons.point_of_sale_rounded,
-              title: 'New Sale (POS)',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true)) // Old POS Screen
-                );
-              }
-          ),
-          _drawerItem(
-              icon: Icons.inventory_2_rounded,
-              title: 'Inventory Management',
-              onTap: () {
-                Navigator.pop(context);
-                // 🚀 UPDATE: Yahan ab nayi wali Inventory Screen khulegi!
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const stock.InventoryScreen())
-                );
-              }
-          ),
-          _drawerItem(
-              icon: Icons.account_balance_wallet_rounded,
-              title: 'Receivables List',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => ReceivablesScreen())
-                );
-              }
-          ),
-          _drawerItem(
-              icon: Icons.receipt_long_rounded,
-              title: 'Receipts / Invoices',
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen())
-                );
-              }
-          ),
+          _drawerItem(icon: Icons.dashboard_rounded, title: 'Dashboard', onTap: () => Navigator.pop(context)),
+          _drawerItem(icon: Icons.menu_book_rounded, title: 'Customer Khata', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
+          }),
+          _drawerItem(icon: Icons.point_of_sale_rounded, title: 'New Sale (POS)', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true)));
+          }),
+          _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
+          }),
+          _drawerItem(icon: Icons.account_balance_wallet_rounded, title: 'Receivables List', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ReceivablesScreen()));
+          }),
+          _drawerItem(icon: Icons.receipt_long_rounded, title: 'Receipts / Invoices', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen()));
+          }),
         ],
       ),
     );
