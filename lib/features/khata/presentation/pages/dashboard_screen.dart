@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
+import '../../../pos/presentation/pages/invoices_receipts_screen.dart'; // --- 🚀 NAYA IMPORT ADD KIYA HAI ---
 import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../pos/presentation/state/pos_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -226,7 +227,6 @@ class DashboardScreen extends ConsumerWidget {
               title: 'New Sale (POS)',
               onTap: () {
                 Navigator.pop(context);
-                // --- 🚀 FIXED: POS Mode True pass kar rahe hain ---
                 Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))
@@ -238,10 +238,21 @@ class DashboardScreen extends ConsumerWidget {
               title: 'Inventory Management',
               onTap: () {
                 Navigator.pop(context);
-                // --- 🚀 FIXED: POS Mode False pass kar rahe hain (Inventory Mode) ---
                 Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: false))
+                );
+              }
+          ),
+          // --- 🚀 NAYA DRAWER ITEM ADD KIYA HAI YAHAN ---
+          _drawerItem(
+              icon: Icons.receipt_long_rounded,
+              title: 'Receipts / Invoices',
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen())
                 );
               }
           ),
