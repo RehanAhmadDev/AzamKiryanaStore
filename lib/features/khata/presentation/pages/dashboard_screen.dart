@@ -1,14 +1,43 @@
+// lib/features/dashboard/presentation/pages/dashboard_screen.dart
+
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'khata_screen.dart';
-// --- Naya Import ---
 import '../../../pos/presentation/pages/inventory_screen.dart';
+import '../../../khata/presentation/state/state/khata_provider.dart';
+import '../../../pos/presentation/state/pos_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
+  Future<Map<String, double>> _fetchSalesStats() async {
+    final supabase = Supabase.instance.client;
+    try {
+      final response = await supabase.from('sales').select('total_amount, sale_type');
+
+      double totalCash = 0;
+      double totalKhata = 0;
+
+      for (var record in response) {
+        double amount = (record['total_amount'] as num).toDouble();
+        if (record['sale_type'] == 'cash') {
+          totalCash += amount;
+        } else {
+          totalKhata += amount;
+        }
+      }
+      return {'cash': totalCash, 'khata': totalKhata};
+    } catch (e) {
+      return {'cash': 0, 'khata': 0};
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final customerState = ref.watch(customerProvider);
+
     return Scaffold(
       drawer: _buildSideDrawer(context),
       body: Container(
@@ -24,42 +53,68 @@ class DashboardScreen extends StatelessWidget {
             children: [
               _buildPremiumHeader(context),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Business Overview',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildGlassCard(
-                        title: 'Total Sales',
-                        amount: 'Rs. 580',
-                        icon: Icons.trending_up,
-                        color: const Color(0xFF10B981),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildGlassCard(
-                        title: 'Total Income',
-                        amount: 'Rs. 580',
-                        icon: Icons.account_balance_wallet,
-                        color: const Color(0xFF3B82F6),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildGlassCard(
-                        title: 'Active Customers',
-                        amount: '2',
-                        icon: Icons.people_alt,
-                        color: const Color(0xFFF59E0B),
-                      ),
-                    ],
-                  ),
+                child: customerState.when(
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (err, stack) => Center(child: Text('Error: $err')),
+                  data: (customers) {
+                    return FutureBuilder<Map<String, double>>(
+                      future: _fetchSalesStats(),
+                      builder: (context, snapshot) {
+                        double cashSales = snapshot.data?['cash'] ?? 0;
+                        double khataSales = snapshot.data?['khata'] ?? 0;
+                        double totalCombinedSales = cashSales + khataSales;
+
+                        double totalMarketCredit = customers.fold(0, (sum, item) => sum + item.totalBalance);
+
+                        return RefreshIndicator(
+                          onRefresh: () async {
+                            await ref.read(customerProvider.notifier).loadCustomers();
+                          },
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(20.0),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Business Overview',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildGlassCard(
+                                  title: 'Total Sales (Cash + Khata)',
+                                  amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
+                                  icon: Icons.trending_up,
+                                  color: const Color(0xFF10B981),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildGlassCard(
+                                  title: 'Pending Credit (Udhaar)',
+                                  amount: 'Rs. ${totalMarketCredit.toStringAsFixed(0)}',
+                                  icon: Icons.account_balance_wallet,
+                                  color: const Color(0xFF3B82F6),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildGlassCard(
+                                  title: 'Active Customers',
+                                  amount: customers.length.toString(),
+                                  icon: Icons.people_alt,
+                                  color: const Color(0xFFF59E0B),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ],
@@ -166,26 +221,28 @@ class DashboardScreen extends StatelessWidget {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
               }
           ),
-
-          // --- 🛠️ YAHAN LAGA HAI ASAL LISTENER POS PAR ---
           _drawerItem(
               icon: Icons.point_of_sale_rounded,
               title: 'New Sale (POS)',
               onTap: () {
-                Navigator.pop(context); // Drawer band karein
+                Navigator.pop(context);
+                // --- 🚀 FIXED: POS Mode True pass kar rahe hain ---
                 Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const InventoryScreen())
+                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))
                 );
               }
           ),
-
           _drawerItem(
               icon: Icons.inventory_2_rounded,
               title: 'Inventory Management',
               onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen()));
+                // --- 🚀 FIXED: POS Mode False pass kar rahe hain (Inventory Mode) ---
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: false))
+                );
               }
           ),
         ],

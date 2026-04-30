@@ -1,13 +1,17 @@
+// lib/features/pos/presentation/pages/inventory_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/product_model.dart';
 import '../state/pos_provider.dart';
 import '../state/cart_provider.dart';
 import '../widgets/barcode_scanner_widget.dart';
-import 'checkout_screen.dart'; // Naya import Checkout Screen ke liye
+import 'checkout_screen.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
-  const InventoryScreen({super.key});
+  final bool isPosMode; // --- 🚀 NAYA FLAG YAHAN ADD HUA HAI ---
+
+  const InventoryScreen({super.key, this.isPosMode = true}); // Default ko POS banaya hai
 
   @override
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
@@ -31,28 +35,30 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        title: const Text('New Sale (POS)',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        // --- 🚀 TITLE FLAG KE MUTABIQ CHANGE HOGA ---
+        title: Text(widget.isPosMode ? 'New Sale (POS)' : 'Inventory Management',
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          // Scan to Cart Button
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF10B981)),
-            tooltip: 'Scan & Add to Cart',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => BarcodeScannerWidget(
-                    onDetect: (code) {
-                      _handleScanToCart(context, ref, code);
-                    },
+          // Scan button sirf POS mode mein chahiye (Optional: Aap isay dono mein bhi rakh saktay hain)
+          if (widget.isPosMode)
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF10B981)),
+              tooltip: 'Scan & Add to Cart',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BarcodeScannerWidget(
+                      onDetect: (code) {
+                        _handleScanToCart(context, ref, code);
+                      },
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -99,14 +105,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, stack) => Center(child: Text('Error: $err')),
               data: (products) {
-                // Filter products based on search query
                 final filteredProducts = products.where((p) {
                   return p.name.toLowerCase().contains(_searchQuery.toLowerCase());
                 }).toList();
 
                 if (products.isEmpty) {
-                  return const Center(
-                      child: Text('No products in stock. Add your first item!'));
+                  return Center(
+                      child: Text(widget.isPosMode
+                          ? 'No products in stock.'
+                          : 'No products in stock. Add your first item!'));
                 }
 
                 if (filteredProducts.isEmpty) {
@@ -130,12 +137,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           borderRadius: BorderRadius.circular(12),
                           side: BorderSide(color: Colors.grey.shade200)),
                       child: ListTile(
+                        // --- 🚀 TAP ACTION DEPENDS ON MODE ---
                         onTap: () {
-                          if (!outOfStock) {
-                            _addToCart(context, ref, product);
+                          if (widget.isPosMode) {
+                            if (!outOfStock) {
+                              _addToCart(context, ref, product);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Item is out of stock!'), backgroundColor: Colors.red),
+                              );
+                            }
                           } else {
+                            // TODO: Future mein yahan Edit Product ka dialog kholenge
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Item is out of stock!'), backgroundColor: Colors.red),
+                              const SnackBar(content: Text('Edit feature coming soon!'), duration: Duration(seconds: 1)),
                             );
                           }
                         },
@@ -148,12 +163,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(
                             'Sale: Rs. ${product.salePrice.toStringAsFixed(0)} | Stock: ${product.stock}'),
-                        trailing: outOfStock
+                        // --- 🚀 TRAILING WIDGET DEPENDS ON MODE ---
+                        trailing: widget.isPosMode
+                            ? (outOfStock
                             ? const Text('Out of Stock', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12))
                             : IconButton(
                           icon: const Icon(Icons.add_shopping_cart, color: Color(0xFF10B981)),
                           onPressed: () => _addToCart(context, ref, product),
-                        ),
+                        ))
+                            : const Icon(Icons.edit, color: Colors.grey), // Inventory mode mein edit icon
                       ),
                     );
                   },
@@ -164,8 +182,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ],
       ),
 
-      // --- 🛒 CART SUMMARY BOTTOM BAR ---
-      bottomNavigationBar: cartList.isNotEmpty
+      // --- 🛒 CART SUMMARY BOTTOM BAR (SIRF POS MODE MEIN DIKHEGA) ---
+      bottomNavigationBar: (widget.isPosMode && cartList.isNotEmpty)
           ? Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         decoration: BoxDecoration(
@@ -211,7 +229,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: () {
-                  // --- 🛠️ FIXED: Navigating to Checkout Screen ---
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -228,18 +245,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       )
           : null,
 
-      // --- ➕ ADD PRODUCT FAB ---
-      floatingActionButton: FloatingActionButton.extended(
+      // --- ➕ ADD PRODUCT FAB (SIRF INVENTORY MODE MEIN DIKHEGA) ---
+      floatingActionButton: !widget.isPosMode
+          ? FloatingActionButton.extended(
         onPressed: () => _showAddProductDialog(context, ref),
         label: const Text('Add Product',
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         icon: const Icon(Icons.add, color: Colors.white),
         backgroundColor: const Color(0xFF0F172A),
-      ),
+      )
+          : null,
     );
   }
 
-  // --- HELPER: Add to Cart ---
   void _addToCart(BuildContext context, WidgetRef ref, ProductModel product) {
     final cartItem = CartItem(
       productId: product.id,
@@ -257,7 +275,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  // --- HELPER: Handle Scan to Cart ---
   void _handleScanToCart(BuildContext context, WidgetRef ref, String scannedCode) {
     final productsState = ref.read(productsProvider);
 
@@ -266,7 +283,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         final product = products.firstWhere((p) => p.barcode == scannedCode);
         if (product.stock > 0) {
           _addToCart(context, ref, product);
-          Navigator.pop(context); // Close scanner after success
+          Navigator.pop(context);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Scanned item is out of stock!'), backgroundColor: Colors.red),
@@ -280,7 +297,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     });
   }
 
-  // --- 🛠️ ADVANCED ADD PRODUCT DIALOG ---
   void _showAddProductDialog(BuildContext context, WidgetRef ref) {
     final nameController = TextEditingController();
     final barcodeController = TextEditingController();
@@ -323,7 +339,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                                 setState(() {
                                   barcodeController.text = code;
                                 });
-                                Navigator.pop(context); // Close scanner after reading code
+                                Navigator.pop(context);
                               },
                             ),
                           ),
@@ -363,7 +379,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
                 try {
                   final newProduct = ProductModel(
-                    id: '', // Supabase handles this
+                    id: '',
                     name: nameController.text,
                     barcode: barcodeController.text.isEmpty ? null : barcodeController.text,
                     purchasePrice: double.tryParse(purchaseController.text) ?? 0.0,
@@ -389,7 +405,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  // UI Helper for fields
   Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isNumber = false}) {
     return TextField(
       controller: controller,

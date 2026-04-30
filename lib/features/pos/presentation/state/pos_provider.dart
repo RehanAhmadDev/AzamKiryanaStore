@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart'; // ID generation ke liye
 import '../../data/models/product_model.dart';
 
-// Products ki list ko handle karne wala provider
 final productsProvider = StateNotifierProvider<ProductsNotifier, AsyncValue<List<ProductModel>>>((ref) {
   return ProductsNotifier();
 });
@@ -13,8 +13,8 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
   }
 
   final _supabase = Supabase.instance.client;
+  final _uuid = const Uuid();
 
-  // Database se products lana
   Future<void> fetchProducts() async {
     state = const AsyncValue.loading();
     try {
@@ -26,21 +26,33 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
     }
   }
 
-  // Naya Product add karna
   Future<void> addProduct(ProductModel product) async {
     try {
       await _supabase.from('products').insert(product.toJson());
-      await fetchProducts(); // List refresh karein
+      await fetchProducts();
     } catch (e) {
       rethrow;
     }
   }
 
-  // --- 🛠️ NEW: Stock Deduction Function ---
-  // Sale hone ke baad item ka stock kam karne ke liye
+  // --- 🛠️ NEW: Sale Save Function (For Cash & Khata tracking) ---
+  Future<void> saveSale({required double totalAmount, required int itemsCount, required String type}) async {
+    try {
+      await _supabase.from('sales').insert({
+        'id': _uuid.v4(),
+        'total_amount': totalAmount,
+        'items_count': itemsCount,
+        'sale_type': type, // 'cash' ya 'khata'
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      print("Error saving sale record: $e");
+      // Agar sale record save na bhi ho, hum process nahi rokenge
+    }
+  }
+
   Future<void> reduceStock(String productId, int quantitySold) async {
     try {
-      // 1. Fetch current stock from database
       final response = await _supabase
           .from('products')
           .select('stock')
@@ -48,18 +60,14 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
           .single();
 
       final currentStock = response['stock'] as int;
-
-      // 2. Calculate new stock (Ensure it doesn't go below 0)
       int newStock = currentStock - quantitySold;
       if (newStock < 0) newStock = 0;
 
-      // 3. Update the stock in database
       await _supabase
           .from('products')
           .update({'stock': newStock})
           .eq('id', productId);
 
-      // 4. Refresh the UI list
       await fetchProducts();
     } catch (e) {
       rethrow;

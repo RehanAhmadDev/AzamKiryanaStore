@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/cart_provider.dart';
 import '../state/pos_provider.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
-// Entity import karna zaroori hai
 import '../../../khata/domain/entities/khata_entry_entity.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -19,22 +18,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   bool _isLoading = false;
 
-  // --- 💰 FUNCTION: Handle Cash Payment ---
+  // --- 💰 FUNCTION: Handle Cash Payment (Updated with Sale Recording) ---
   Future<void> _processCashPayment() async {
     final cartItems = ref.read(cartProvider);
+    final totalPrice = ref.read(cartProvider.notifier).totalPrice;
+
     setState(() => _isLoading = true);
 
     try {
+      // 1. Stock kam karein
       for (var item in cartItems) {
         await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
       }
+
+      // 2. Sales record save karein (Cash entry)
+      await ref.read(productsProvider.notifier).saveSale(
+        totalAmount: totalPrice,
+        itemsCount: cartItems.length,
+        type: 'cash',
+      );
 
       ref.read(cartProvider.notifier).clearCart();
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Payment Successful! Stock Updated.'),
+            content: Text('Cash Sale Successful! Record Saved.'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
@@ -43,7 +52,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating stock: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -51,7 +60,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  // --- 📖 FUNCTION: Handle Khata (Credit) Payment ---
   void _processKhataPayment(double totalAmount) {
     showModalBottomSheet(
       context: context,
@@ -119,7 +127,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  // --- 🛠️ FUNCTION: Confirm Khata Sale (FIXED) ---
   Future<void> _confirmKhataSale(dynamic customer, double totalAmount) async {
     Navigator.pop(context);
 
@@ -127,26 +134,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Inventory se stock kam karein
       for (var item in cartItems) {
         await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
-      // 2. Khata mein entry add karein
-
-      // 2. Khata mein entry add karein (Fixed for your EntryType)
       final entry = KhataEntryEntity(
         id: '',
         customerId: customer.id,
         amount: totalAmount,
-        type: EntryType.gave, // 'isGave: true' ki jagah 'type' use karein
+        type: EntryType.gave,
         date: DateTime.now(),
-        notes: 'POS Sale: ${cartItems.length} items', // 'description' ki jagah 'notes'
+        notes: 'POS Sale: ${cartItems.length} items',
       );
 
       await ref.read(customerProvider.notifier).addEntry(entry);
 
-      // 3. Cart clear karein
+      // Sale record save karein (Khata entry tag ke sath)
+      await ref.read(productsProvider.notifier).saveSale(
+        totalAmount: totalAmount,
+        itemsCount: cartItems.length,
+        type: 'khata',
+      );
+
       ref.read(cartProvider.notifier).clearCart();
 
       if (context.mounted) {
