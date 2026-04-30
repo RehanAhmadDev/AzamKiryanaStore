@@ -6,10 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
 import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
-// 🚀 FIX 1: Import added correctly
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
-import '../../../pos/presentation/state/pos_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -67,7 +65,17 @@ class DashboardScreen extends ConsumerWidget {
                         double khataSales = snapshot.data?['khata'] ?? 0;
                         double totalCombinedSales = cashSales + khataSales;
 
-                        double totalMarketCredit = customers.fold(0, (sum, item) => sum + item.totalBalance);
+                        // 🚀 NEW LOGIC: Wasooli vs Adayigi calculation
+                        double totalToReceive = 0;
+                        double totalToPay = 0;
+
+                        for (var customer in customers) {
+                          if (customer.totalBalance > 0) {
+                            totalToReceive += customer.totalBalance;
+                          } else if (customer.totalBalance < 0) {
+                            totalToPay += customer.totalBalance.abs();
+                          }
+                        }
 
                         return RefreshIndicator(
                           onRefresh: () async {
@@ -89,22 +97,34 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 16),
 
+                                // Main Sales Card
                                 _buildGlassCard(
-                                  title: 'Total Sales (Cash + Khata)',
+                                  title: 'Total Sales (This Month)',
                                   amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
                                   icon: Icons.trending_up,
                                   color: const Color(0xFF10B981),
                                 ),
                                 const SizedBox(height: 16),
 
+                                // Wasooli (Receivables) - Green
                                 _buildGlassCard(
-                                  title: 'Pending Credit (Udhaar)',
-                                  amount: 'Rs. ${totalMarketCredit.toStringAsFixed(0)}',
-                                  icon: Icons.account_balance_wallet,
-                                  color: const Color(0xFF3B82F6),
+                                  title: 'Total Wasooli (To Receive)',
+                                  amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
+                                  icon: Icons.call_received_rounded,
+                                  color: const Color(0xFF10B981),
                                 ),
                                 const SizedBox(height: 16),
 
+                                // Adayigi (Payables) - Red
+                                _buildGlassCard(
+                                  title: 'Total Adayigi (To Pay)',
+                                  amount: 'Rs. ${totalToPay.toStringAsFixed(0)}',
+                                  icon: Icons.call_made_rounded,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Active Customers Card
                                 _buildGlassCard(
                                   title: 'Active Customers',
                                   amount: customers.length.toString(),
@@ -131,7 +151,7 @@ class DashboardScreen extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
+        color: const Color(0xFF0F172A), // Modern Dark Blue
         borderRadius: const BorderRadius.only(
           bottomLeft: Radius.circular(30),
           bottomRight: Radius.circular(30),
@@ -157,7 +177,7 @@ class DashboardScreen extends ConsumerWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white),
                   ),
                   Text(
-                    'Store POS',
+                    'Market Insight',
                     style: TextStyle(fontSize: 13, color: Colors.white70),
                   ),
                 ],
@@ -177,21 +197,44 @@ class DashboardScreen extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withOpacity(0.8),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(amount, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-                  Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        amount,
+                        style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                            color: color == const Color(0xFFEF4444) ? const Color(0xFFEF4444) : const Color(0xFF0F172A)
+                        )
+                    ),
+                    Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
-              Icon(icon, color: color, size: 32),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 28),
+              ),
             ],
           ),
         ),
@@ -206,9 +249,14 @@ class DashboardScreen extends ConsumerWidget {
         padding: EdgeInsets.zero,
         children: [
           DrawerHeader(
-            decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
-            child: const Center(
-              child: Icon(Icons.storefront, color: Colors.white, size: 48),
+            decoration: const BoxDecoration(color: Color(0xFF0F172A)),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.storefront, color: Colors.white, size: 48),
+                SizedBox(height: 10),
+                Text('Main Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
             ),
           ),
           _drawerItem(
@@ -246,15 +294,13 @@ class DashboardScreen extends ConsumerWidget {
                 );
               }
           ),
-          // --- 🚀 RECEIVABLES NAVIGATION ---
           _drawerItem(
               icon: Icons.account_balance_wallet_rounded,
-              title: 'Receivables',
+              title: 'Receivables List',
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                     context,
-                    // 🚀 FIX 2: const removed from here
                     MaterialPageRoute(builder: (context) => ReceivablesScreen())
                 );
               }
@@ -278,7 +324,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget _drawerItem({required IconData icon, required String title, required VoidCallback onTap}) {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFF64748B)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
       onTap: onTap,
     );
   }

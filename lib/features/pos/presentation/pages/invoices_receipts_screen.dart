@@ -3,8 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart'; // 🚀 Date formatting ke liye add kiya
 import '../../utils/pdf_generator.dart';
-
 
 class InvoicesReceiptsScreen extends ConsumerStatefulWidget {
   const InvoicesReceiptsScreen({super.key});
@@ -26,15 +26,20 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
   }
 
   Future<void> _fetchSales() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      // 🚀 UPDATED: Join query taake customer ka naam mil sakay
       final response = await _supabase
           .from('sales')
-          .select()
+          .select('*, customers(name)')
           .order('created_at', ascending: false);
-      setState(() {
-        _sales = response;
-      });
+
+      if (mounted) {
+        setState(() {
+          _sales = response;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -48,10 +53,13 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
 
   String _formatDate(String isoString) {
     DateTime date = DateTime.parse(isoString).toLocal();
-    return "${date.day}/${date.month}/${date.year}";
+    return DateFormat('dd MMM yyyy, hh:mm a').format(date);
   }
 
   void _showReceiptDetails(Map<String, dynamic> sale) {
+    // Customer ka naam nikalna (Agar walk-in customer ho to handle karna)
+    final String customerName = sale['customers']?['name'] ?? 'Walk-in Customer';
+
     showDialog(
       context: context,
       builder: (context) {
@@ -78,6 +86,8 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                     ),
                     const Divider(height: 32),
 
+                    _buildReceiptRow('Customer:', customerName), // 🚀 Naam yahan dikhega
+                    const SizedBox(height: 8),
                     _buildReceiptRow('Items Count:', '${sale['items_count']} Items'),
                     const SizedBox(height: 8),
                     _buildReceiptRow('Sale Type:', sale['sale_type'].toString().toUpperCase()),
@@ -100,10 +110,8 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // --- 🚀 NAYE DONO BUTTONS ---
                     Row(
                       children: [
-                        // Button 1: Direct Download
                         Expanded(
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
@@ -112,7 +120,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () async {
-                              Navigator.pop(context); // Close dialog
+                              Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading Bill...')));
                               await ReceiptPdfGenerator.downloadReceiptSilent(sale);
                               if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saved to Downloads!'), backgroundColor: Color(0xFF10B981)));
@@ -122,8 +130,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                           ),
                         ),
                         const SizedBox(width: 12),
-
-                        // Button 2: Android Preview
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
@@ -132,7 +138,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () async {
-                              Navigator.pop(context); // Close dialog
+                              Navigator.pop(context);
                               await ReceiptPdfGenerator.previewReceipt(sale);
                             },
                             icon: const Icon(Icons.visibility, color: Colors.white, size: 18),
@@ -144,8 +150,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                   ],
                 ),
               ),
-
-              // --- 🚀 CLOSE (X) BUTTON TOP RIGHT PAR ---
               Positioned(
                 top: 8,
                 right: 8,
@@ -173,12 +177,15 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
             fontSize: isTotal ? 16 : 14,
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            color: const Color(0xFF0F172A),
-            fontWeight: FontWeight.bold,
-            fontSize: isTotal ? 18 : 14,
+        Flexible( // 🚀 Text overflow se bachne ke liye
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: const Color(0xFF0F172A),
+              fontWeight: FontWeight.bold,
+              fontSize: isTotal ? 18 : 14,
+            ),
           ),
         ),
       ],
@@ -187,9 +194,11 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Search logic update ki taake Invoice ID ya Naam dono se search ho sakay
     final filteredSales = _sales.where((sale) {
       final idString = sale['id'].toString().toLowerCase();
-      return idString.contains(_searchQuery.toLowerCase());
+      final customerName = (sale['customers']?['name'] ?? '').toString().toLowerCase();
+      return idString.contains(_searchQuery.toLowerCase()) || customerName.contains(_searchQuery.toLowerCase());
     }).toList();
 
     return Scaffold(
@@ -207,7 +216,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
             child: TextField(
               onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
-                hintText: 'Search by Invoice ID...',
+                hintText: 'Search by Invoice ID or Name...',
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 filled: true,
                 fillColor: const Color(0xFFF8FAFC),
@@ -240,6 +249,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                   final sale = filteredSales[index];
                   final isCash = sale['sale_type'] == 'cash';
                   final shortId = sale['id'].toString().substring(0, 8).toUpperCase();
+                  final String customerName = sale['customers']?['name'] ?? 'Walk-in Customer';
 
                   return Card(
                     elevation: 0,
@@ -276,7 +286,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                                     children: [
                                       Text(
                                         '#INV-$shortId',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0F172A)),
                                       ),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -296,16 +306,21 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                                     ],
                                   ),
                                   const SizedBox(height: 4),
+                                  Text(
+                                    customerName,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF475569)),
+                                  ),
+                                  const SizedBox(height: 4),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         _formatDate(sale['created_at']),
-                                        style: const TextStyle(color: Colors.grey, fontSize: 13),
+                                        style: const TextStyle(color: Colors.grey, fontSize: 12),
                                       ),
                                       Text(
                                         'Rs. ${(sale['total_amount'] as num).toStringAsFixed(0)}',
-                                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 15),
+                                        style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0F172A), fontSize: 16),
                                       ),
                                     ],
                                   ),
