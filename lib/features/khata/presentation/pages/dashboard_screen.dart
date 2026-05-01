@@ -11,39 +11,46 @@ import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 
-// Nayi Inventory Screen aur Provider ka import
+// Inventory aur Provider imports
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 import '../../../inventory/presentation/state/inventory_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
-  // 🚀 REAL-TIME STREAM: Ye function ab sales ka live data sunega
-  Stream<Map<String, double>> _salesStream() {
+  Stream<Map<String, double>> _businessStatsStream() {
     return Supabase.instance.client
         .from('sales')
         .stream(primaryKey: ['id'])
         .map((data) {
       double totalCash = 0;
       double totalKhata = 0;
+      double totalProfit = 0;
+
       for (var record in data) {
         double amount = (record['total_amount'] as num).toDouble();
+        double profit = (record['total_profit'] as num? ?? 0).toDouble();
+
+        totalProfit += profit;
+
         if (record['sale_type'] == 'cash') {
           totalCash += amount;
         } else {
           totalKhata += amount;
         }
       }
-      return {'cash': totalCash, 'khata': totalKhata};
+      return {
+        'cash': totalCash,
+        'khata': totalKhata,
+        'profit': totalProfit
+      };
     });
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customerState = ref.watch(customerProvider);
-    // 🚨 Naya: Inventory se low stock items nikalne ke liye
-    final inventoryState = ref.watch(inventoryProvider);
-    final lowStockItems = ref.read(inventoryProvider.notifier).getLowStockItems(threshold: 5); // Threshold apni marzi se change kar sakte hain
+    final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 5);
 
     return Scaffold(
       drawer: _buildSideDrawer(context),
@@ -64,12 +71,12 @@ class DashboardScreen extends ConsumerWidget {
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
-                    // 🚀 STREAM BUILDER: Real-time updates ke liye
                     return StreamBuilder<Map<String, double>>(
-                      stream: _salesStream(),
+                      stream: _businessStatsStream(),
                       builder: (context, snapshot) {
                         double cashSales = snapshot.data?['cash'] ?? 0;
                         double khataSales = snapshot.data?['khata'] ?? 0;
+                        double totalProfit = snapshot.data?['profit'] ?? 0;
                         double totalCombinedSales = cashSales + khataSales;
 
                         double totalToReceive = 0;
@@ -85,9 +92,8 @@ class DashboardScreen extends ConsumerWidget {
 
                         return RefreshIndicator(
                           onRefresh: () async {
-                            // Riverpod state refresh karne ke liye
                             await ref.read(customerProvider.notifier).loadCustomers();
-                            await ref.read(inventoryProvider.notifier).fetchProducts(); // Inventory bhi refresh karein
+                            await ref.read(inventoryProvider.notifier).fetchProducts();
                           },
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.all(20.0),
@@ -95,60 +101,8 @@ class DashboardScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // 🚨 LOW STOCK ALERT WIDGET 🚨
                                 if (lowStockItems.isNotEmpty) ...[
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFEF2F2), // Light Red background
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5), // Red border
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
-                                            const SizedBox(width: 8),
-                                            const Text(
-                                              'Low Stock Alert!',
-                                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF991B1B)),
-                                            ),
-                                            const Spacer(),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFEF4444),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                '${lowStockItems.length} Items',
-                                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        // Sirf shuru ke 3 items dikhayen alert box mein
-                                        ...lowStockItems.take(3).map((item) => Padding(
-                                          padding: const EdgeInsets.only(bottom: 6.0),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text('• ${item.name}', style: const TextStyle(color: Color(0xFF7F1D1D), fontWeight: FontWeight.w500)),
-                                              Text('Only ${item.stock} left', style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
-                                            ],
-                                          ),
-                                        )),
-                                        if (lowStockItems.length > 3)
-                                          Text(
-                                            '+ ${lowStockItems.length - 3} more items...',
-                                            style: const TextStyle(color: Color(0xFF991B1B), fontStyle: FontStyle.italic, fontSize: 12),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
+                                  _buildLowStockAlert(lowStockItems),
                                   const SizedBox(height: 24),
                                 ],
 
@@ -178,36 +132,38 @@ class DashboardScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 32),
                                 const Text(
-                                  'Business Overview',
+                                  'Business Insights',
                                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
                                 ),
                                 const SizedBox(height: 16),
+
                                 _buildGlassCard(
-                                  title: 'Total Sales (This Month)',
+                                  title: 'Estimated Profit (This Month)',
+                                  amount: 'Rs. ${totalProfit.toStringAsFixed(0)}',
+                                  icon: Icons.auto_graph_rounded,
+                                  color: const Color(0xFF8B5CF6),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildGlassCard(
+                                  title: 'Total Sales',
                                   amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
                                   icon: Icons.trending_up,
                                   color: const Color(0xFF6366F1),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildGlassCard(
-                                  title: 'Total Wasooli (To Receive)',
+                                  title: 'Total Wasooli',
                                   amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
                                   icon: Icons.call_received_rounded,
                                   color: const Color(0xFF10B981),
                                 ),
                                 const SizedBox(height: 16),
                                 _buildGlassCard(
-                                  title: 'Total Adayigi (To Pay)',
+                                  title: 'Total Adayigi',
                                   amount: 'Rs. ${totalToPay.toStringAsFixed(0)}',
                                   icon: Icons.call_made_rounded,
                                   color: const Color(0xFFEF4444),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildGlassCard(
-                                  title: 'Active Customers',
-                                  amount: customers.length.toString(),
-                                  icon: Icons.people_alt_rounded,
-                                  color: const Color(0xFFF59E0B),
                                 ),
                               ],
                             ),
@@ -225,7 +181,34 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- UI Helper Widgets (ActionCard, PremiumHeader, GlassCard, Drawer) ---
+  // --- UI COMPONENTS ---
+
+  Widget _buildLowStockAlert(List<dynamic> items) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 24),
+              const SizedBox(width: 8),
+              const Text('Low Stock Alert!', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF991B1B))),
+              const Spacer(),
+              Text('${items.length} items', style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 12)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...items.take(2).map((item) => Text('• ${item.name} (${item.stock} left)', style: const TextStyle(fontSize: 13, color: Color(0xFF7F1D1D)))),
+        ],
+      ),
+    );
+  }
 
   Widget _buildActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Expanded(
@@ -281,35 +264,33 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildGlassCard({required String title, required String amount, required IconData icon, required Color color}) {
     return Container(
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: Colors.white, width: 1.5),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(amount, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: color == const Color(0xFFEF4444) ? const Color(0xFFEF4444) : const Color(0xFF0F172A))),
-                Text(title, style: const TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-              ],
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(amount, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+              Text(title, style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+            ],
           ),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 28),
+            child: Icon(icon, color: color, size: 24),
           ),
         ],
       ),
     );
   }
 
+  // --- 🛠️ UPDATED: SARI CHEZAY NAVIGATION MAY WAPIS ---
   Widget _buildSideDrawer(BuildContext context) {
     return Drawer(
       backgroundColor: Colors.white,
@@ -321,7 +302,7 @@ class DashboardScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.storefront, color: Colors.white, size: 48),
+                Icon(Icons.storefront, color: Colors.white, size: 40),
                 SizedBox(height: 10),
                 Text('Main Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ],
@@ -332,19 +313,16 @@ class DashboardScreen extends ConsumerWidget {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
           }),
-          _drawerItem(icon: Icons.point_of_sale_rounded, title: 'New Sale (POS)', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true)));
-          }),
           _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
           }),
-          _drawerItem(icon: Icons.account_balance_wallet_rounded, title: 'Receivables List', onTap: () {
+          // 🚀 WAPIS ADD KIYE GAYE OPTIONS
+          _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
             Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => ReceivablesScreen()));
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ReceivablesScreen()));
           }),
-          _drawerItem(icon: Icons.receipt_long_rounded, title: 'Receipts / Invoices', onTap: () {
+          _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen()));
           }),

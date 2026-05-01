@@ -3,7 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/cart_provider.dart';
-import '../state/pos_provider.dart';
+// Naya Inventory Provider import kiya
+import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../khata/domain/entities/khata_entry_entity.dart';
 
@@ -15,25 +16,45 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 }
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
-
   bool _isLoading = false;
 
-  // --- 💰 FUNCTION: Handle Cash Payment (Updated with Sale Recording) ---
+  // --- 💰 FUNCTION: Calculate Total Profit ---
+  double _calculateTotalProfit() {
+    final cartItems = ref.read(cartProvider);
+    final allProducts = ref.read(inventoryProvider);
+    double totalProfit = 0;
+
+    for (var cartItem in cartItems) {
+      try {
+        // Inventory se product ki purchase price nikalna
+        final product = allProducts.firstWhere((p) => p.id == cartItem.productId);
+        double itemProfit = (cartItem.price - product.purchasePrice) * cartItem.quantity;
+        totalProfit += itemProfit;
+      } catch (e) {
+        // Agar product na mile toh default 0 profit
+        debugPrint("Profit calculation error for ${cartItem.name}: $e");
+      }
+    }
+    return totalProfit;
+  }
+
+  // --- 💵 FUNCTION: Handle Cash Payment ---
   Future<void> _processCashPayment() async {
     final cartItems = ref.read(cartProvider);
     final totalPrice = ref.read(cartProvider.notifier).totalPrice;
+    final totalProfit = _calculateTotalProfit();
 
     setState(() => _isLoading = true);
 
     try {
-      // 1. Stock kam karein
+      // 1. Stock kam karein aur Sale record save karein
       for (var item in cartItems) {
-        await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
+        await ref.read(inventoryProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
-      // 2. Sales record save karein (Cash entry)
-      await ref.read(productsProvider.notifier).saveSale(
+      await ref.read(inventoryProvider.notifier).saveSaleWithProfit(
         totalAmount: totalPrice,
+        totalProfit: totalProfit,
         itemsCount: cartItems.length,
         type: 'cash',
       );
@@ -43,7 +64,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Cash Sale Successful! Record Saved.'),
+            content: Text('Cash Sale Successful! Profit Recorded.'),
             backgroundColor: Color(0xFF10B981),
           ),
         );
@@ -90,7 +111,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       data: (customers) {
                         if (customers.isEmpty) {
                           return const Center(
-                            child: Text('No customers found.\nPlease add a customer first.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                            child: Text('No customers found.', textAlign: TextAlign.center),
                           );
                         }
 
@@ -101,17 +122,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             return ListTile(
                               leading: CircleAvatar(
                                 backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
-                                child: Text(
-                                  customer.name[0].toUpperCase(),
-                                  style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold),
-                                ),
+                                child: Text(customer.name[0].toUpperCase()),
                               ),
                               title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text(customer.phone),
-                              trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-                              onTap: () {
-                                _confirmKhataSale(customer, totalAmount);
-                              },
+                              onTap: () => _confirmKhataSale(customer, totalAmount),
                             );
                           },
                         );
@@ -129,16 +144,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   Future<void> _confirmKhataSale(dynamic customer, double totalAmount) async {
     Navigator.pop(context);
-
     final cartItems = ref.read(cartProvider);
+    final totalProfit = _calculateTotalProfit();
+
     setState(() => _isLoading = true);
 
     try {
+      // 1. Stock aur Sale record (Profit ke sath)
       for (var item in cartItems) {
-        await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
+        await ref.read(inventoryProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
-      // 🚀 FIXED: Cart items ko combine kar ke ek string bana di
       final String itemDetails = cartItems.map((item) => '${item.name} x${item.quantity}').join(', ');
 
       final entry = KhataEntryEntity(
@@ -147,17 +163,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         amount: totalAmount,
         type: EntryType.gave,
         date: DateTime.now(),
-        // 🚀 FIXED: Ab yahan 'itemDetails' bhej rahe hain taake PDF mein items ke naam aayein
         notes: itemDetails,
       );
 
       await ref.read(customerProvider.notifier).addEntry(entry);
 
-      // Sale record save karein (Khata entry tag ke sath)
-      await ref.read(productsProvider.notifier).saveSale(
+      await ref.read(inventoryProvider.notifier).saveSaleWithProfit(
         totalAmount: totalAmount,
+        totalProfit: totalProfit,
         itemsCount: cartItems.length,
         type: 'khata',
+        customerId: customer.id,
       );
 
       ref.read(cartProvider.notifier).clearCart();
@@ -197,9 +213,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       body: Stack(
         children: [
           cartList.isEmpty
-              ? const Center(
-            child: Text('Your cart is empty!', style: TextStyle(fontSize: 18, color: Colors.grey)),
-          )
+              ? const Center(child: Text('Your cart is empty!'))
               : Column(
             children: [
               Expanded(
@@ -223,16 +237,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                              onPressed: _isLoading ? null : () {
-                                ref.read(cartProvider.notifier).decreaseQuantity(item.productId);
-                              },
+                              onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).decreaseQuantity(item.productId),
                             ),
-                            Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline, color: Color(0xFF10B981)),
-                              onPressed: _isLoading ? null : () {
-                                ref.read(cartProvider.notifier).addItem(item);
-                              },
+                              onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).addItem(item),
                             ),
                           ],
                         ),
@@ -241,38 +251,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   },
                 ),
               ),
-
               Container(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, -5),
-                    )
-                  ],
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
                 ),
                 child: SafeArea(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Total Amount',
-                            style: TextStyle(fontSize: 18, color: Colors.grey, fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            'Rs. ${totalPrice.toStringAsFixed(0)}',
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF0F172A)),
-                          ),
+                          const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                          Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -280,27 +272,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         children: [
                           Expanded(
                             child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF59E0B),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
                               onPressed: _isLoading ? null : () => _processKhataPayment(totalPrice),
                               icon: const Icon(Icons.menu_book, color: Colors.white),
-                              label: const Text('Khata (Credit)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              label: const Text('Khata (Credit)', style: TextStyle(color: Colors.white)),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF10B981),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
                               onPressed: _isLoading ? null : _processCashPayment,
                               icon: const Icon(Icons.payments, color: Colors.white),
-                              label: const Text('Cash Sale', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              label: const Text('Cash Sale', style: TextStyle(color: Colors.white)),
                             ),
                           ),
                         ],
@@ -311,14 +295,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
             ],
           ),
-
           if (_isLoading)
-            Container(
-              color: Colors.black.withOpacity(0.3),
-              child: const Center(
-                child: CircularProgressIndicator(color: Color(0xFF10B981)),
-              ),
-            ),
+            const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
         ],
       ),
     );
