@@ -4,7 +4,10 @@ import '../../data/models/expense_model.dart';
 import '../state/expense_provider.dart';
 
 class AddExpenseScreen extends ConsumerStatefulWidget {
-  const AddExpenseScreen({super.key});
+  // 🚀 Naya optional parameter add kiya gaya hai
+  final ExpenseModel? existingExpense;
+
+  const AddExpenseScreen({super.key, this.existingExpense});
 
   @override
   ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -17,6 +20,24 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String _selectedCategory = 'Utility';
 
   final List<String> _categories = ['Utility', 'Food', 'Rent', 'Salary', 'Misc'];
+
+  // 🚀 initState mein purana data auto-fill karne ka logic
+  @override
+  void initState() {
+    super.initState();
+    if (widget.existingExpense != null) {
+      _titleController.text = widget.existingExpense!.title;
+      _amountController.text = widget.existingExpense!.amount.toStringAsFixed(0);
+      _notesController.text = widget.existingExpense!.notes ?? '';
+
+      // Safety check: Agar purani category list mein nahi hai toh Misc set kar do
+      if (_categories.contains(widget.existingExpense!.category)) {
+        _selectedCategory = widget.existingExpense!.category;
+      } else {
+        _selectedCategory = 'Misc';
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -42,23 +63,32 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
-    // Model create karna logic ke mutabiq
-    final newExpense = ExpenseModel(
+    final isUpdating = widget.existingExpense != null;
+
+    // 🚀 Model create karna (Naya ya Update)
+    final expenseData = ExpenseModel(
+      id: isUpdating ? widget.existingExpense!.id : null, // ID update ke liye zaroori hai
       title: _titleController.text,
       amount: amount,
       category: _selectedCategory,
-      date: DateTime.now(),
+      date: isUpdating ? widget.existingExpense!.date : DateTime.now(), // Purani date barqarar rakhni hai
       notes: _notesController.text,
     );
 
-    await ref.read(expenseProvider.notifier).addExpense(newExpense);
+    if (isUpdating) {
+      // Update logic (Ye function humein provider mein banana hoga)
+      await ref.read(expenseProvider.notifier).updateExpense(expenseData);
+    } else {
+      // Add logic
+      await ref.read(expenseProvider.notifier).addExpense(expenseData);
+    }
 
     if (mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Expense Added Successfully!'),
-          backgroundColor: Color(0xFF10B981), // Success Green
+        SnackBar(
+          content: Text(isUpdating ? 'Expense Updated Successfully!' : 'Expense Added Successfully!'),
+          backgroundColor: const Color(0xFF10B981), // Success Green
         ),
       );
     }
@@ -67,11 +97,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(expenseProvider);
+    final isUpdating = widget.existingExpense != null; // Screen mode check
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('New Expense', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        // 🚀 Title change hoga mode ke hisaab se
+        title: Text(isUpdating ? 'Edit Expense' : 'New Expense',
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -89,14 +122,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
               height: 55,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEF4444), // Expense Red
+                  backgroundColor: isUpdating ? const Color(0xFF6366F1) : const Color(0xFFEF4444), // Update ke liye blue color
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
                 onPressed: state.isLoading ? null : _submitData,
                 child: state.isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Save Expense', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                // 🚀 Button text change hoga
+                    : Text(isUpdating ? 'Update Expense' : 'Save Expense',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],

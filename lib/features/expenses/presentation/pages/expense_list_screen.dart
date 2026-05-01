@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../widgets/expense_card.dart';
 import '../../data/models/expense_model.dart';
+import '../state/expense_provider.dart';
+import 'add_expense_screen.dart'; // 🚀 Edit screen ke liye import add kiya
 
-class ExpenseListScreen extends StatelessWidget {
+class ExpenseListScreen extends ConsumerWidget {
   const ExpenseListScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -55,7 +59,50 @@ class ExpenseListScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (showDateHeader) _buildDateHeader(expense.date),
-                  ExpenseCard(expense: expense),
+
+                  // 🚀 Dismissible Widget For Swipe-to-Delete
+                  Dismissible(
+                    key: Key(expense.id ?? expense.hashCode.toString()),
+                    direction: DismissDirection.endToStart, // Sirf Right se Left swipe hoga
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6), // Card ke margin ke sath match kiya
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444), // Expense Red
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
+                    ),
+                    onDismissed: (direction) {
+                      if (expense.id != null) {
+                        // Delete function call
+                        ref.read(expenseProvider.notifier).deleteExpense(expense.id!);
+
+                        // Success message
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Expense deleted successfully'),
+                            backgroundColor: Color(0xFF10B981), // Success Green
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+                    // 🚀 InkWell For Tap-to-Edit
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddExpenseScreen(existingExpense: expense),
+                          ),
+                        );
+                      },
+                      child: ExpenseCard(expense: expense),
+                    ),
+                  ),
                 ],
               );
             },
