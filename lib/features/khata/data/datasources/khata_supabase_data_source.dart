@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart'; // Unique ID banane ke liye
+import 'package:uuid/uuid.dart';
 import '../../domain/entities/khata_entry_entity.dart';
 import '../models/customer_model.dart';
 import '../models/khata_entry_model.dart';
@@ -10,11 +10,17 @@ abstract class KhataRemoteDataSource {
   Future<void> addKhataEntry(KhataEntryModel entry);
   Future<List<KhataEntryModel>> getKhataEntriesByCustomerId(String customerId);
   Future<void> updateCustomerBalance(String customerId, double newBalance);
+  Future<void> deleteKhataEntry(String entryId);
+  Future<void> deleteCustomer(String customerId);
+  Future<void> updateKhataEntry(KhataEntryModel entry);
+
+  // 🚀 NEW: Update Customer Interface
+  Future<void> updateCustomer(CustomerModel customer);
 }
 
 class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
   final _supabase = Supabase.instance.client;
-  final _uuid = const Uuid(); // UUID generator instance
+  final _uuid = const Uuid();
 
   @override
   Future<void> addCustomer(CustomerModel customer) async {
@@ -26,6 +32,15 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
       'total_balance': customer.totalBalance,
       'created_at': customer.createdAt.toIso8601String(),
     });
+  }
+
+  // 🚀 NEW: Update Customer Logic (Name & Phone)
+  @override
+  Future<void> updateCustomer(CustomerModel customer) async {
+    await _supabase.from('customers').update({
+      'name': customer.name,
+      'phone': customer.phone,
+    }).eq('id', customer.id);
   }
 
   @override
@@ -47,10 +62,8 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
 
   @override
   Future<void> addKhataEntry(KhataEntryModel entry) async {
-    // 1. Check if ID is empty, then generate one
     final entryId = entry.id.isEmpty ? _uuid.v4() : entry.id;
 
-    // 2. Insert the entry
     await _supabase.from('khata_entries').insert({
       'id': entryId,
       'customer_id': entry.customerId,
@@ -60,24 +73,7 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
       'date': entry.date.toIso8601String(),
     });
 
-    // 3. Update the customer's total balance
-    final customerData = await _supabase
-        .from('customers')
-        .select('total_balance')
-        .eq('id', entry.customerId)
-        .single();
-
-    if (customerData.isNotEmpty) {
-      double currentBalance = (customerData['total_balance'] as num).toDouble();
-      // EntryType.gave ka matlab hai hum ne udhaar diya (Balance barhe ga)
-      double amountImpact = entry.type == EntryType.gave ? entry.amount : -entry.amount;
-      double newBalance = currentBalance + amountImpact;
-
-      await _supabase
-          .from('customers')
-          .update({'total_balance': newBalance})
-          .eq('id', entry.customerId);
-    }
+    await _syncCustomerBalance(entry.customerId);
   }
 
   @override
@@ -104,5 +100,53 @@ class KhataSupabaseDataSourceImpl implements KhataRemoteDataSource {
         .from('customers')
         .update({'total_balance': newBalance})
         .eq('id', customerId);
+  }
+
+  @override
+  Future<void> deleteKhataEntry(String entryId) async {
+    final entryData = await _supabase
+        .from('khata_entries')
+        .select('customer_id')
+        .eq('id', entryId)
+        .single();
+
+    final String customerId = entryData['customer_id'];
+    await _supabase.from('khata_entries').delete().eq('id', entryId);
+    await _syncCustomerBalance(customerId);
+  }
+
+  @override
+  Future<void> deleteCustomer(String customerId) async {
+    await _supabase.from('customers').delete().eq('id', customerId);
+  }
+
+  @override
+  Future<void> updateKhataEntry(KhataEntryModel entry) async {
+    await _supabase.from('khata_entries').update({
+      'amount': entry.amount,
+      'type': entry.type == EntryType.gave ? 'gave' : 'got',
+      'notes': entry.notes,
+      'date': entry.date.toIso8601String(),
+    }).eq('id', entry.id);
+
+    await _syncCustomerBalance(entry.customerId);
+  }
+
+  Future<void> _syncCustomerBalance(String customerId) async {
+    final List<dynamic> entries = await _supabase
+        .from('khata_entries')
+        .select('amount, type')
+        .eq('customer_id', customerId);
+
+    double total = 0.0;
+    for (var entry in entries) {
+      double amt = (entry['amount'] as num).toDouble();
+      if (entry['type'] == 'gave') {
+        total += amt;
+      } else {
+        total -= amt;
+      }
+    }
+    await updateCustomerBalance(customerId, total);
   }
 }

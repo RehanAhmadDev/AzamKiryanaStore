@@ -1,9 +1,7 @@
-// lib/features/khata/presentation/pages/receivables_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/state/khata_provider.dart';
-import 'customer_ledger_screen.dart';
+import 'customer_detail_screen.dart';
 
 class ReceivablesScreen extends ConsumerStatefulWidget {
   const ReceivablesScreen({super.key});
@@ -18,7 +16,6 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
   @override
   void initState() {
     super.initState();
-    // Screen load hote hi latest data fetch karne ke liye
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(customerProvider.notifier).loadCustomers();
     });
@@ -51,7 +48,6 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
           double totalReceivables = 0;
           double totalPayables = 0;
 
-          // Calculations based on totalBalance
           for (var customer in customers) {
             if (customer.totalBalance > 0) {
               totalReceivables += customer.totalBalance;
@@ -63,191 +59,121 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
           final filteredCustomers = customers.where((customer) {
             final name = customer.name.toLowerCase();
             final phone = customer.phone.toLowerCase();
-            final query = _searchQuery.toLowerCase();
-            return name.contains(query) || phone.contains(query);
+            return name.contains(_searchQuery.toLowerCase()) || phone.contains(_searchQuery.toLowerCase());
           }).toList();
 
           return Column(
             children: [
-              // --- 📊 TOP SUMMARY CARDS ---
+              // 📊 Summary Cards
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          border: Border.all(color: const Color(0xFFBBF7D0)),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.arrow_downward_rounded, color: Color(0xFF10B981), size: 24),
-                            const SizedBox(height: 8),
-                            const Text('Total Receivables', style: TextStyle(color: Color(0xFF475569), fontSize: 13)),
-                            const SizedBox(height: 4),
-                            Text(
-                              '+ Rs. ${totalReceivables.toStringAsFixed(2)}',
-                              style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _buildSummaryCard(
+                      title: 'Total Receivables',
+                      amount: totalReceivables,
+                      color: const Color(0xFF10B981),
+                      bgColor: const Color(0xFFF0FDF4),
+                      borderColor: const Color(0xFFBBF7D0),
+                      icon: Icons.arrow_downward_rounded,
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF2F2),
-                          border: Border.all(color: const Color(0xFFFECACA)),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(Icons.arrow_upward_rounded, color: Color(0xFFEF4444), size: 24),
-                            const SizedBox(height: 8),
-                            const Text('Total Payables', style: TextStyle(color: Color(0xFF475569), fontSize: 13)),
-                            const SizedBox(height: 4),
-                            Text(
-                              '- Rs. ${totalPayables.abs().toStringAsFixed(2)}',
-                              style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 18),
-                            ),
-                          ],
-                        ),
-                      ),
+                    _buildSummaryCard(
+                      title: 'Total Payables',
+                      amount: totalPayables.abs(),
+                      color: const Color(0xFFEF4444),
+                      bgColor: const Color(0xFFFEF2F2),
+                      borderColor: const Color(0xFFFECACA),
+                      icon: Icons.arrow_upward_rounded,
                     ),
                   ],
                 ),
               ),
 
-              // --- 🔍 SEARCH BAR ---
+              // 🔍 Search Bar
               Container(
                 color: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: TextField(
                   onChanged: (value) => setState(() => _searchQuery = value),
                   decoration: InputDecoration(
-                    hintText: 'Search by name or phone...',
+                    hintText: 'Search contacts...',
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     filled: true,
                     fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
               ),
 
-              const SizedBox(height: 8),
-
-              // --- 📋 CUSTOMERS LIST ---
+              // 📋 Filtered List
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () async {
-                    await ref.read(customerProvider.notifier).loadCustomers();
-                  },
-                  child: filteredCustomers.isEmpty
-                      ? ListView(
-                    children: const [
-                      SizedBox(height: 100),
-                      Center(
-                        child: Text('No customers found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
-                      ),
-                    ],
-                  )
-                      : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filteredCustomers.length,
-                    separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                    itemBuilder: (context, index) {
-                      final customer = filteredCustomers[index];
-                      final String name = customer.name;
-                      final String phone = customer.phone;
-                      final double balance = customer.totalBalance;
+                child: filteredCustomers.isEmpty
+                    ? const Center(child: Text('No matching records found.', style: TextStyle(color: Colors.grey)))
+                    : ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredCustomers.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  itemBuilder: (context, index) {
+                    final customer = filteredCustomers[index];
+                    final bool isReceivable = customer.totalBalance > 0;
+                    final Color statusColor = isReceivable ? const Color(0xFF10B981) : (customer.totalBalance < 0 ? const Color(0xFFEF4444) : Colors.grey);
 
-                      String statusText = 'Settled';
-                      Color statusColor = Colors.grey;
-                      String balancePrefix = '';
-
-                      if (balance > 0) {
-                        statusText = 'To Receive';
-                        statusColor = const Color(0xFF10B981);
-                        balancePrefix = '+ ';
-                      } else if (balance < 0) {
-                        statusText = 'To Pay';
-                        statusColor = const Color(0xFFEF4444);
-                        balancePrefix = '- ';
-                      }
-
-                      return Container(
-                        color: Colors.white,
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          leading: CircleAvatar(
-                            radius: 24,
-                            backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A), fontSize: 18),
-                            ),
-                          ),
-                          title: Text(
-                            name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0F172A)),
-                          ),
-                          subtitle: Text(
-                            phone,
-                            style: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                          ),
-                          trailing: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '$balancePrefix Rs. ${balance.abs().toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: statusColor,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                statusText,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: statusColor.withOpacity(0.8),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            // 🚀 Professional Navigation with CustomerEntity
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CustomerLedgerScreen(customer: customer),
-                              ),
-                            );
-                          },
+                    return Container(
+                      color: Colors.white,
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
+                          child: Text(customer.name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                         ),
-                      );
-                    },
-                  ),
+                        title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(customer.phone, style: const TextStyle(fontSize: 12)),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 15),
+                            ),
+                            Text(
+                              isReceivable ? 'To Receive' : (customer.totalBalance < 0 ? 'To Pay' : 'Settled'),
+                              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => CustomerDetailScreen(customer: customer)),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard({required String title, required double amount, required Color color, required Color bgColor, required Color borderColor, required IconData icon}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: bgColor, border: Border.all(color: borderColor), borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(color: Color(0xFF475569), fontSize: 12)),
+            Text('Rs. ${amount.toStringAsFixed(0)}', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
       ),
     );
   }

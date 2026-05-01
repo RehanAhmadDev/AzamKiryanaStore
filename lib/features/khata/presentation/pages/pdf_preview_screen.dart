@@ -19,7 +19,7 @@ class PdfPreviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('PDF Ledger Preview', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Ledger Preview', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -30,22 +30,16 @@ class PdfPreviewScreen extends StatelessWidget {
         canChangeOrientation: false,
         canChangePageFormat: false,
         pdfFileName: 'Ledger_${customer.name.replaceAll(" ", "_")}.pdf',
-
         actions: [
           PdfPreviewAction(
             icon: const Icon(Icons.file_download, color: Colors.white),
             onPressed: (context, build, pageFormat) async {
               try {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Downloading PDF...')),
-                );
-
                 final bytes = await build(pageFormat);
 
-                // --- 🛠️ 100% FIXED SYNTAX: Labels wapis add kar diye hain ---
-                // --- 🛠️ ERROR FIXED: 'ext' parameter remove kar diya gaya hai ---
+                // 🚀 FIXED: 'ext' parameter removed, extension added to 'name'
                 await FileSaver.instance.saveFile(
-                  name: 'Ledger_${customer.name.replaceAll(" ", "_")}.pdf', // Name ke aage .pdf laga diya for safety
+                  name: 'Ledger_${customer.name.replaceAll(" ", "_")}.pdf',
                   bytes: bytes,
                   mimeType: MimeType.pdf,
                 );
@@ -53,7 +47,7 @@ class PdfPreviewScreen extends StatelessWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('PDF Downloaded successfully! Check your files.'),
+                      content: Text('Report downloaded successfully!'),
                       backgroundColor: Color(0xFF10B981),
                     ),
                   );
@@ -61,10 +55,7 @@ class PdfPreviewScreen extends StatelessWidget {
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error downloading: $e'),
-                      backgroundColor: Colors.red,
-                    ),
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                   );
                 }
               }

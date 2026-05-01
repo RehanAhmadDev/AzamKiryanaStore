@@ -17,8 +17,9 @@ final khataRepositoryProvider = Provider<KhataRepository>((ref) {
 // --- Customer List Notifier ---
 class CustomerNotifier extends StateNotifier<AsyncValue<List<CustomerEntity>>> {
   final KhataRepository repository;
+  final Ref ref;
 
-  CustomerNotifier({required this.repository}) : super(const AsyncValue.loading()) {
+  CustomerNotifier({required this.repository, required this.ref}) : super(const AsyncValue.loading()) {
     loadCustomers();
   }
 
@@ -41,23 +42,62 @@ class CustomerNotifier extends StateNotifier<AsyncValue<List<CustomerEntity>>> {
     }
   }
 
+  // 🚀 NEW: Update Customer Name/Phone Logic
+  Future<void> updateCustomer(CustomerEntity customer) async {
+    try {
+      await repository.updateCustomer(customer);
+      await loadCustomers(); // UI List refresh karne ke liye
+    } catch (e) {
+      print("Error updating customer: $e");
+    }
+  }
+
   Future<void> addEntry(KhataEntryEntity entry) async {
     try {
       await repository.addKhataEntry(entry);
       await loadCustomers();
+      ref.invalidate(transactionProvider(entry.customerId));
     } catch (e, stackTrace) {
       print("Error adding entry: $e");
+    }
+  }
+
+  Future<void> updateEntry(KhataEntryEntity entry) async {
+    try {
+      await repository.updateKhataEntry(entry);
+      await loadCustomers();
+      ref.invalidate(transactionProvider(entry.customerId));
+    } catch (e) {
+      print("Error updating entry: $e");
+    }
+  }
+
+  Future<void> deleteEntry(String entryId, String customerId) async {
+    try {
+      await repository.deleteKhataEntry(entryId);
+      await loadCustomers();
+      ref.invalidate(transactionProvider(customerId));
+    } catch (e) {
+      print("Error deleting entry: $e");
+    }
+  }
+
+  Future<void> deleteCustomer(String customerId) async {
+    try {
+      await repository.deleteCustomer(customerId);
+      await loadCustomers();
+    } catch (e) {
+      print("Error deleting customer: $e");
     }
   }
 }
 
 final customerProvider = StateNotifierProvider<CustomerNotifier, AsyncValue<List<CustomerEntity>>>((ref) {
   final repository = ref.read(khataRepositoryProvider);
-  return CustomerNotifier(repository: repository);
+  return CustomerNotifier(repository: repository, ref: ref);
 });
 
-// --- NEW: Transaction History Notifier ---
-// Yeh kisi specific customer ki saari entries fetch karne ke liye hai
+// --- Transaction History Notifier ---
 class TransactionNotifier extends StateNotifier<AsyncValue<List<KhataEntryEntity>>> {
   final KhataRepository repository;
   final String customerId;
@@ -77,7 +117,6 @@ class TransactionNotifier extends StateNotifier<AsyncValue<List<KhataEntryEntity
   }
 }
 
-// Family provider use kiya hai taake customerId pass ki ja sake
 final transactionProvider = StateNotifierProvider.family<TransactionNotifier, AsyncValue<List<KhataEntryEntity>>, String>((ref, customerId) {
   final repository = ref.read(khataRepositoryProvider);
   return TransactionNotifier(repository: repository, customerId: customerId);

@@ -1,4 +1,4 @@
-enum EntryType { gave, got } // gave = DIVE, got = LIYE
+enum EntryType { gave, got }
 
 class KhataEntryEntity {
   final String id;
@@ -16,4 +16,23 @@ class KhataEntryEntity {
     this.notes,
     required this.date,
   });
+
+  // 🚀 FIXED: copyWith method added to resolve the error in Dialog
+  KhataEntryEntity copyWith({
+    String? id,
+    String? customerId,
+    double? amount,
+    EntryType? type,
+    String? notes,
+    DateTime? date,
+  }) {
+    return KhataEntryEntity(
+      id: id ?? this.id,
+      customerId: customerId ?? this.customerId,
+      amount: amount ?? this.amount,
+      type: type ?? this.type,
+      notes: notes ?? this.notes,
+      date: date ?? this.date,
+    );
+  }
 }
