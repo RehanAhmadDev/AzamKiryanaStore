@@ -27,6 +27,34 @@ class ProductEntity {
     required this.updatedAt,
   });
 
+  ProductEntity copyWith({
+    String? id,
+    String? name,
+    String? barcode,
+    double? purchasePrice,
+    double? salePrice,
+    int? stock,
+    String? category,
+    int? lowStockThreshold,
+    bool? isActive,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ProductEntity(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      barcode: barcode ?? this.barcode,
+      purchasePrice: purchasePrice ?? this.purchasePrice,
+      salePrice: salePrice ?? this.salePrice,
+      stock: stock ?? this.stock,
+      category: category ?? this.category,
+      lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   // Profit nikalne ka formula
   double get profitMargin => salePrice - purchasePrice;
 

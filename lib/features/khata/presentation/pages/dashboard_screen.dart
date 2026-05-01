@@ -11,8 +11,9 @@ import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 
-// Nayi Inventory Screen ka import
+// Nayi Inventory Screen aur Provider ka import
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
+import '../../../inventory/presentation/state/inventory_provider.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -40,6 +41,9 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final customerState = ref.watch(customerProvider);
+    // 🚨 Naya: Inventory se low stock items nikalne ke liye
+    final inventoryState = ref.watch(inventoryProvider);
+    final lowStockItems = ref.read(inventoryProvider.notifier).getLowStockItems(threshold: 5); // Threshold apni marzi se change kar sakte hain
 
     return Scaffold(
       drawer: _buildSideDrawer(context),
@@ -83,6 +87,7 @@ class DashboardScreen extends ConsumerWidget {
                           onRefresh: () async {
                             // Riverpod state refresh karne ke liye
                             await ref.read(customerProvider.notifier).loadCustomers();
+                            await ref.read(inventoryProvider.notifier).fetchProducts(); // Inventory bhi refresh karein
                           },
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.all(20.0),
@@ -90,6 +95,63 @@ class DashboardScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // 🚨 LOW STOCK ALERT WIDGET 🚨
+                                if (lowStockItems.isNotEmpty) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFEF2F2), // Light Red background
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5), // Red border
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 28),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Low Stock Alert!',
+                                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF991B1B)),
+                                            ),
+                                            const Spacer(),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFEF4444),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Text(
+                                                '${lowStockItems.length} Items',
+                                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        // Sirf shuru ke 3 items dikhayen alert box mein
+                                        ...lowStockItems.take(3).map((item) => Padding(
+                                          padding: const EdgeInsets.only(bottom: 6.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text('• ${item.name}', style: const TextStyle(color: Color(0xFF7F1D1D), fontWeight: FontWeight.w500)),
+                                              Text('Only ${item.stock} left', style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                                            ],
+                                          ),
+                                        )),
+                                        if (lowStockItems.length > 3)
+                                          Text(
+                                            '+ ${lowStockItems.length - 3} more items...',
+                                            style: const TextStyle(color: Color(0xFF991B1B), fontStyle: FontStyle.italic, fontSize: 12),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                ],
+
                                 const Text(
                                   'Quick Actions',
                                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
