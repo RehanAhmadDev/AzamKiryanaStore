@@ -1,11 +1,13 @@
 // lib/features/dashboard/presentation/pages/dashboard_screen.dart
 
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:async/async.dart'; // Ensure this is in pubspec.yaml
 
-import 'khata_screen.dart';
+import '../../../khata/presentation/pages/khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
 import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
@@ -15,23 +17,41 @@ import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 import '../../../inventory/presentation/state/inventory_provider.dart';
 
-class DashboardScreen extends ConsumerWidget {
+// Expense Screen Import
+import '../../../expenses/presentation/pages/add_expense_screen.dart';
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+
+  // 🚀 HIGHLY REACTIVE: Combined Real-time Stream
   Stream<Map<String, double>> _businessStatsStream() {
-    return Supabase.instance.client
-        .from('sales')
-        .stream(primaryKey: ['id'])
-        .map((data) {
+    final client = Supabase.instance.client;
+
+    // Monitor both tables for ANY change (Insert/Update/Delete)
+    final salesStream = client.from('sales').stream(primaryKey: ['id']);
+    final expensesStream = client.from('expenses').stream(primaryKey: ['id']);
+
+    // Merge signals from both streams
+    return StreamGroup.merge([salesStream, expensesStream]).asyncMap((_) async {
+      // Re-fetch fresh data from both tables when either signals a change
+      final salesData = await client.from('sales').select();
+      final expensesData = await client.from('expenses').select();
+
       double totalCash = 0;
       double totalKhata = 0;
-      double totalProfit = 0;
+      double grossProfit = 0;
+      double totalExpenses = 0;
 
-      for (var record in data) {
+      for (var record in salesData) {
         double amount = (record['total_amount'] as num).toDouble();
         double profit = (record['total_profit'] as num? ?? 0).toDouble();
-
-        totalProfit += profit;
+        grossProfit += profit;
 
         if (record['sale_type'] == 'cash') {
           totalCash += amount;
@@ -39,16 +59,23 @@ class DashboardScreen extends ConsumerWidget {
           totalKhata += amount;
         }
       }
+
+      for (var expense in expensesData) {
+        totalExpenses += (expense['amount'] as num).toDouble();
+      }
+
       return {
         'cash': totalCash,
         'khata': totalKhata,
-        'profit': totalProfit
+        'grossProfit': grossProfit,
+        'expenses': totalExpenses,
+        'netProfit': grossProfit - totalExpenses,
       };
     });
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final customerState = ref.watch(customerProvider);
     final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 5);
 
@@ -72,11 +99,15 @@ class DashboardScreen extends ConsumerWidget {
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
                     return StreamBuilder<Map<String, double>>(
+                      // ✨ UniqueKey forces refresh when data emits
+                      key: UniqueKey(),
                       stream: _businessStatsStream(),
                       builder: (context, snapshot) {
-                        double cashSales = snapshot.data?['cash'] ?? 0;
-                        double khataSales = snapshot.data?['khata'] ?? 0;
-                        double totalProfit = snapshot.data?['profit'] ?? 0;
+                        final stats = snapshot.data ?? {};
+                        double cashSales = stats['cash'] ?? 0;
+                        double khataSales = stats['khata'] ?? 0;
+                        double totalExpenses = stats['expenses'] ?? 0;
+                        double netProfit = stats['netProfit'] ?? 0;
                         double totalCombinedSales = cashSales + khataSales;
 
                         double totalToReceive = 0;
@@ -106,10 +137,7 @@ class DashboardScreen extends ConsumerWidget {
                                   const SizedBox(height: 24),
                                 ],
 
-                                const Text(
-                                  'Quick Actions',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
-                                ),
+                                const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
@@ -120,7 +148,7 @@ class DashboardScreen extends ConsumerWidget {
                                       color: const Color(0xFF6366F1),
                                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
                                     ),
-                                    const SizedBox(width: 16),
+                                    const SizedBox(width: 12),
                                     _buildActionCard(
                                       context,
                                       title: 'New Sale',
@@ -128,20 +156,33 @@ class DashboardScreen extends ConsumerWidget {
                                       color: const Color(0xFF10B981),
                                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
                                     ),
+                                    const SizedBox(width: 12),
+                                    _buildActionCard(
+                                      context,
+                                      title: 'Expense',
+                                      icon: Icons.account_balance_wallet_rounded,
+                                      color: const Color(0xFFEF4444),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 32),
-                                const Text(
-                                  'Business Insights',
-                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                                const Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                const SizedBox(height: 16),
+
+                                _buildGlassCard(
+                                  title: 'Net Profit (After Expenses)',
+                                  amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
+                                  icon: Icons.auto_graph_rounded,
+                                  color: const Color(0xFF8B5CF6),
                                 ),
                                 const SizedBox(height: 16),
 
                                 _buildGlassCard(
-                                  title: 'Estimated Profit (This Month)',
-                                  amount: 'Rs. ${totalProfit.toStringAsFixed(0)}',
-                                  icon: Icons.auto_graph_rounded,
-                                  color: const Color(0xFF8B5CF6),
+                                  title: 'Total Expenses',
+                                  amount: 'Rs. ${totalExpenses.toStringAsFixed(0)}',
+                                  icon: Icons.money_off_rounded,
+                                  color: const Color(0xFFEF4444),
                                 ),
                                 const SizedBox(height: 16),
 
@@ -157,13 +198,6 @@ class DashboardScreen extends ConsumerWidget {
                                   amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
                                   icon: Icons.call_received_rounded,
                                   color: const Color(0xFF10B981),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildGlassCard(
-                                  title: 'Total Adayigi',
-                                  amount: 'Rs. ${totalToPay.toStringAsFixed(0)}',
-                                  icon: Icons.call_made_rounded,
-                                  color: const Color(0xFFEF4444),
                                 ),
                               ],
                             ),
@@ -181,8 +215,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- UI COMPONENTS ---
-
+  // UI Helper Widgets (Original Logic Maintained)
   Widget _buildLowStockAlert(List<dynamic> items) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -226,7 +259,7 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               Icon(icon, color: color, size: 32),
               const SizedBox(height: 8),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
+              FittedBox(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)))),
             ],
           ),
         ),
@@ -290,7 +323,6 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  // --- 🛠️ UPDATED: SARI CHEZAY NAVIGATION MAY WAPIS ---
   Widget _buildSideDrawer(BuildContext context) {
     return Drawer(
       backgroundColor: Colors.white,
@@ -317,7 +349,6 @@ class DashboardScreen extends ConsumerWidget {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
           }),
-          // 🚀 WAPIS ADD KIYE GAYE OPTIONS
           _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const ReceivablesScreen()));

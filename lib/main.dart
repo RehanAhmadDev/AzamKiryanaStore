@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Aapka current dashboard screen ka path
-import 'features/khata/presentation/pages/dashboard_screen.dart';
+import 'features/dashboard/presentation/pages/dashboard_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
