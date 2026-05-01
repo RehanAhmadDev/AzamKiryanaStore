@@ -138,13 +138,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         await ref.read(productsProvider.notifier).reduceStock(item.productId, item.quantity);
       }
 
+      // 🚀 FIXED: Cart items ko combine kar ke ek string bana di
+      final String itemDetails = cartItems.map((item) => '${item.name} x${item.quantity}').join(', ');
+
       final entry = KhataEntryEntity(
         id: '',
         customerId: customer.id,
         amount: totalAmount,
         type: EntryType.gave,
         date: DateTime.now(),
-        notes: 'POS Sale: ${cartItems.length} items',
+        // 🚀 FIXED: Ab yahan 'itemDetails' bhej rahe hain taake PDF mein items ke naam aayein
+        notes: itemDetails,
       );
 
       await ref.read(customerProvider.notifier).addEntry(entry);
