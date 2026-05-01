@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:async/async.dart'; // Ensure this is in pubspec.yaml
+import 'package:async/async.dart';
 
 import '../../../khata/presentation/pages/khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
@@ -17,8 +17,9 @@ import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 import '../../../inventory/presentation/state/inventory_provider.dart';
 
-// Expense Screen Import
+// Expense Screens & Widgets
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
+import '../../../expenses/presentation/pages/expense_list_screen.dart'; // 🚀 New Import
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -33,13 +34,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Stream<Map<String, double>> _businessStatsStream() {
     final client = Supabase.instance.client;
 
-    // Monitor both tables for ANY change (Insert/Update/Delete)
     final salesStream = client.from('sales').stream(primaryKey: ['id']);
     final expensesStream = client.from('expenses').stream(primaryKey: ['id']);
 
-    // Merge signals from both streams
     return StreamGroup.merge([salesStream, expensesStream]).asyncMap((_) async {
-      // Re-fetch fresh data from both tables when either signals a change
       final salesData = await client.from('sales').select();
       final expensesData = await client.from('expenses').select();
 
@@ -99,7 +97,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
                     return StreamBuilder<Map<String, double>>(
-                      // ✨ UniqueKey forces refresh when data emits
                       key: UniqueKey(),
                       stream: _businessStatsStream(),
                       builder: (context, snapshot) {
@@ -215,7 +212,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  // UI Helper Widgets (Original Logic Maintained)
+  // --- UI COMPONENTS ---
+
   Widget _buildLowStockAlert(List<dynamic> items) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -348,6 +346,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
+          }),
+          // 🚀 ADDED: Expense History Navigation
+          _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
           }),
           _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
             Navigator.pop(context);
