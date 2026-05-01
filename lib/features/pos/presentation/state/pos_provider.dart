@@ -35,7 +35,27 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
     }
   }
 
-  // --- 🛠️ NEW: Sale Save Function (For Cash & Khata tracking) ---
+  // 🚀 NEW: Update Product (Inventory Edit)
+  Future<void> updateProduct(ProductModel product) async {
+    try {
+      await _supabase.from('products').update(product.toJson()).match({'id': product.id});
+      await fetchProducts(); // List ko taaza (refresh) karne ke liye
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // 🚀 NEW: Delete Product (Inventory Delete)
+  Future<void> deleteProduct(String productId) async {
+    try {
+      await _supabase.from('products').delete().match({'id': productId});
+      await fetchProducts(); // List ko taaza (refresh) karne ke liye
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  // --- 🛠️ Sale Save Function (For Cash & Khata tracking) ---
   Future<void> saveSale({required double totalAmount, required int itemsCount, required String type}) async {
     try {
       await _supabase.from('sales').insert({
@@ -48,6 +68,17 @@ class ProductsNotifier extends StateNotifier<AsyncValue<List<ProductModel>>> {
     } catch (e) {
       print("Error saving sale record: $e");
       // Agar sale record save na bhi ho, hum process nahi rokenge
+    }
+  }
+
+  // 🚀 NEW: Void Sale (Delete Sale Record)
+  Future<void> deleteSale(String saleId) async {
+    try {
+      await _supabase.from('sales').delete().match({'id': saleId});
+      // Note: Realtime stream on hone ki wajah se Dashboard aur Khata auto-update ho jayenge!
+    } catch (e) {
+      print("Error deleting sale record: $e");
+      rethrow;
     }
   }
 

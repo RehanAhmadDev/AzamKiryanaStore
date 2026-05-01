@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:intl/intl.dart'; // 🚀 Date formatting ke liye add kiya
+import 'package:intl/intl.dart';
 import '../../utils/pdf_generator.dart';
+import '../state/pos_provider.dart'; // 🚀 Provider import kiya delete function ke liye
 
 class InvoicesReceiptsScreen extends ConsumerStatefulWidget {
   const InvoicesReceiptsScreen({super.key});
@@ -29,7 +30,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // 🚀 UPDATED: Join query taake customer ka naam mil sakay
       final response = await _supabase
           .from('sales')
           .select('*, customers(name)')
@@ -57,7 +57,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
   }
 
   void _showReceiptDetails(Map<String, dynamic> sale) {
-    // Customer ka naam nikalna (Agar walk-in customer ho to handle karna)
     final String customerName = sale['customers']?['name'] ?? 'Walk-in Customer';
 
     showDialog(
@@ -86,7 +85,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                     ),
                     const Divider(height: 32),
 
-                    _buildReceiptRow('Customer:', customerName), // 🚀 Naam yahan dikhega
+                    _buildReceiptRow('Customer:', customerName),
                     const SizedBox(height: 8),
                     _buildReceiptRow('Items Count:', '${sale['items_count']} Items'),
                     const SizedBox(height: 8),
@@ -177,7 +176,7 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
             fontSize: isTotal ? 16 : 14,
           ),
         ),
-        Flexible( // 🚀 Text overflow se bachne ke liye
+        Flexible(
           child: Text(
             value,
             textAlign: TextAlign.right,
@@ -194,7 +193,6 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 🚀 Search logic update ki taake Invoice ID ya Naam dono se search ho sakay
     final filteredSales = _sales.where((sale) {
       final idString = sale['id'].toString().toLowerCase();
       final customerName = (sale['customers']?['name'] ?? '').toString().toLowerCase();
@@ -251,7 +249,8 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                   final shortId = sale['id'].toString().substring(0, 8).toUpperCase();
                   final String customerName = sale['customers']?['name'] ?? 'Walk-in Customer';
 
-                  return Card(
+                  // 🚀 STEP 1: Card Widget
+                  Widget invoiceCard = Card(
                     elevation: 0,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
@@ -331,6 +330,76 @@ class _InvoicesReceiptsScreenState extends ConsumerState<InvoicesReceiptsScreen>
                         ),
                       ),
                     ),
+                  );
+
+                  // 🚀 STEP 2: Dismissible for Void Sale (Swipe to Delete)
+                  return Dismissible(
+                    key: Key(sale['id'].toString()),
+                    direction: DismissDirection.endToStart,
+                    confirmDismiss: (direction) async {
+                      // Delete karne se pehle Confirm poochna zaruri hai
+                      return await showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Row(
+                              children: [
+                                Icon(Icons.warning_amber_rounded, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text("Void Invoice?"),
+                              ],
+                            ),
+                            content: const Text("Are you sure you want to delete this sale? This action cannot be undone."),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text("Delete", style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.delete_forever, color: Colors.white, size: 32),
+                    ),
+                    onDismissed: (direction) async {
+                      try {
+                        await ref.read(productsProvider.notifier).deleteSale(sale['id']);
+                        setState(() {
+                          _sales.removeWhere((element) => element['id'] == sale['id']);
+                        });
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Invoice voided successfully'),
+                              backgroundColor: Colors.red,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Failed to delete: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+                    child: invoiceCard,
                   );
                 },
               ),
