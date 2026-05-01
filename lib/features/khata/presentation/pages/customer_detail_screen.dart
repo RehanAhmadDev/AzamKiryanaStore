@@ -6,6 +6,7 @@ import '../../domain/entities/khata_entry_entity.dart';
 
 import '../state/state/khata_provider.dart';
 import '../widgets/add_transaction_dialog.dart';
+import '../widgets/add_customer_dialog.dart'; // 🚀 Added import for AddCustomerDialog
 import 'pdf_preview_screen.dart';
 
 class CustomerDetailScreen extends ConsumerWidget {
@@ -35,6 +36,19 @@ class CustomerDetailScreen extends ConsumerWidget {
         backgroundColor: const Color(0xFF0F172A),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          // 🚀 ADDED: Edit Customer Profile Icon
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+            tooltip: 'Edit Contact Details',
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AddCustomerDialog(
+                  existingCustomer: currentCustomer,
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
             tooltip: 'View & Print PDF',
@@ -136,7 +150,6 @@ class CustomerDetailScreen extends ConsumerWidget {
             style: TextStyle(fontWeight: FontWeight.bold, color: isGave ? Colors.red.shade700 : Colors.green.shade700),
           ),
           const SizedBox(width: 4),
-          // 🚀 EDIT BUTTON ADDED
           IconButton(
             icon: Icon(Icons.edit_outlined, color: Colors.blue.shade400, size: 20),
             onPressed: () {
@@ -145,7 +158,7 @@ class CustomerDetailScreen extends ConsumerWidget {
                 builder: (context) => AddTransactionDialog(
                   customerId: customer.id,
                   isGave: isGave,
-                  existingEntry: entry, // Pass entry to enable edit mode
+                  existingEntry: entry,
                 ),
               );
             },

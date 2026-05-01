@@ -138,7 +138,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
           radius: 25,
@@ -149,17 +149,35 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
         ),
         title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: Text(customer.phone, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        // 🚀 YAHAN CHANGE KIYA HAI: Row add ki hai Edit button ke liye
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: balanceColor),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: balanceColor),
+                ),
+                Text(
+                  isReceivable ? "You'll Get" : "You'll Give",
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                ),
+              ],
             ),
-            Text(
-              isReceivable ? "You'll Get" : "You'll Give",
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            // Edit Button
+            IconButton(
+              icon: Icon(Icons.edit_outlined, color: Colors.blue.shade600),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => AddCustomerDialog(
+                    existingCustomer: customer, // Yahan se purana data pass ho raha hai
+                  ),
+                );
+              },
             ),
           ],
         ),
