@@ -1,5 +1,3 @@
-// lib/features/inventory/presentation/state/inventory_provider.dart
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
@@ -49,29 +47,42 @@ class InventoryNotifier extends StateNotifier<List<ProductEntity>> {
     }
   }
 
+  // 🚀 NEW: Delete Product Logic (Soft Delete taake receipts kharab na hon)
+  Future<void> deleteProduct(String productId) async {
+    // 1. UI ko foran update karne ke liye list se nikal dein (Optimistic Update)
+    final previousState = state;
+    state = state.where((p) => p.id != productId).toList();
+
+    try {
+      // 2. Database (Supabase) mein is_active = false kar dein
+      await repository.deleteProduct(productId);
+    } catch (e) {
+      print("Error deleting product: $e");
+      // Agar error aaye toh wapas purani list dikha dein
+      state = previousState;
+    }
+  }
+
   // ==========================================
   // 💰 ADVANCED: PROFIT TRACKING SYSTEM 💰
   // ==========================================
 
-  // Ab ye function total profit bhi calculate karke save karega
   Future<void> saveSaleWithProfit({
     required double totalAmount,
-    required double totalProfit, // Ye hum checkout screen se calculate karke bhejenge
+    required double totalProfit,
     required int itemsCount,
     required String type,
-    String? customerId, // Khata sale ke liye
+    String? customerId,
   }) async {
     try {
       await Supabase.instance.client.from('sales').insert({
         'total_amount': totalAmount,
-        'total_profit': totalProfit, // Dashboard par "Net Profit" dikhane ke liye
+        'total_profit': totalProfit,
         'items_count': itemsCount,
         'sale_type': type,
         'customer_id': customerId,
         'created_at': DateTime.now().toIso8601String(),
       });
-
-      // Sale ke baad products list refresh karein taake dashboard update ho jaye
       await fetchProducts();
     } catch (e) {
       print("Error saving sale with profit: $e");

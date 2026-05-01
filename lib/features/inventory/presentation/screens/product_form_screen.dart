@@ -1,24 +1,22 @@
-// lib/features/inventory/presentation/screens/product_form_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
 import 'package:uuid/uuid.dart';
 import '../../domain/entities/product_entity.dart';
-import '../../data/repositories/inventory_repository_impl.dart';
-import 'barcode_scanner_view.dart'; // 🚀 Scanner view import
+import '../state/inventory_provider.dart'; // 🚀 Imported Riverpod State
+import 'barcode_scanner_view.dart';
 
-class ProductFormScreen extends StatefulWidget {
+// 🚀 Changed to ConsumerStatefulWidget
+class ProductFormScreen extends ConsumerStatefulWidget {
   final ProductEntity? product;
 
   const ProductFormScreen({Key? key, this.product}) : super(key: key);
 
   @override
-  State<ProductFormScreen> createState() => _ProductFormScreenState();
+  ConsumerState<ProductFormScreen> createState() => _ProductFormScreenState();
 }
 
-class _ProductFormScreenState extends State<ProductFormScreen> {
+class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _repository = InventoryRepositoryImpl(Supabase.instance.client);
 
   bool _isLoading = false;
   String _selectedCategory = 'Grocery';
@@ -26,7 +24,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final List<String> _categories = ['Grocery', 'Drinks', 'Snacks', 'Bakery', 'Dairy', 'Other'];
 
   late TextEditingController _nameController;
-  late TextEditingController _barcodeController; // 🚀 Barcode controller
+  late TextEditingController _barcodeController;
   late TextEditingController _purchasePriceController;
   late TextEditingController _salePriceController;
   late TextEditingController _stockController;
@@ -36,7 +34,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.product?.name ?? '');
-    _barcodeController = TextEditingController(text: widget.product?.barcode ?? ''); // Load barcode if editing
+    _barcodeController = TextEditingController(text: widget.product?.barcode ?? '');
     _purchasePriceController = TextEditingController(text: widget.product != null ? widget.product!.purchasePrice.toStringAsFixed(0) : '');
     _salePriceController = TextEditingController(text: widget.product != null ? widget.product!.salePrice.toStringAsFixed(0) : '');
     _stockController = TextEditingController(text: widget.product?.stock.toString() ?? '');
@@ -58,7 +56,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     super.dispose();
   }
 
-  // 🚀 Barcode scan karne ka function
   Future<void> _scanBarcode() async {
     final String? scannedCode = await Navigator.push(
       context,
@@ -83,7 +80,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final productToSave = ProductEntity(
         id: isEditMode ? widget.product!.id : const Uuid().v4(),
         name: _nameController.text.trim(),
-        barcode: _barcodeController.text.trim(), // 🚀 Barcode save ho raha hai
+        barcode: _barcodeController.text.trim(),
         purchasePrice: double.parse(_purchasePriceController.text.trim()),
         salePrice: double.parse(_salePriceController.text.trim()),
         stock: int.parse(_stockController.text.trim()),
@@ -94,11 +91,17 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
         isActive: true,
       );
 
+      // 🚀 Riverpod ke zariye Repository ko access kiya
+      final repository = ref.read(inventoryRepositoryProvider);
+
       if (isEditMode) {
-        await _repository.updateProduct(productToSave);
+        await repository.updateProduct(productToSave);
       } else {
-        await _repository.addProduct(productToSave);
+        await repository.addProduct(productToSave);
       }
+
+      // 🚀 Naya item add ya update hone ke baad state refresh ki
+      await ref.read(inventoryProvider.notifier).fetchProducts();
 
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
@@ -149,7 +152,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   children: [
                     _buildSectionTitle('Basic Information'),
                     _buildCard([
-                      // 🚀 Barcode Field with Scanner Button
                       Row(
                         children: [
                           Expanded(
@@ -158,7 +160,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                               label: 'Barcode Number',
                               icon: Icons.qr_code_2_rounded,
                               keyboardType: TextInputType.text,
-                              isRequired: false, // Optional if someone doesn't have barcode
+                              isRequired: false,
                             ),
                           ),
                           const SizedBox(width: 10),

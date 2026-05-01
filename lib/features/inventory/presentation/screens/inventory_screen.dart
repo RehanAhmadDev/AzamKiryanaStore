@@ -1,36 +1,21 @@
-// lib/features/inventory/presentation/screens/inventory_screen.dart
-
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
 import '../../domain/entities/product_entity.dart';
-import '../../data/repositories/inventory_repository_impl.dart';
+import '../state/inventory_provider.dart'; // 🚀 Added Provider Import
 import 'product_form_screen.dart';
-import 'barcode_scanner_view.dart'; // 🚀 NEW: Scanner view import
+import 'barcode_scanner_view.dart';
 
-class InventoryScreen extends StatefulWidget {
+// 🚀 Changed to ConsumerStatefulWidget
+class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({Key? key}) : super(key: key);
 
   @override
-  State<InventoryScreen> createState() => _InventoryScreenState();
+  ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen> {
-  final _repository = InventoryRepositoryImpl(Supabase.instance.client);
+class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
-
-  List<ProductEntity> _allProducts = [];
-  List<ProductEntity> _filteredProducts = [];
-  bool _isLoading = true;
-
-  double _totalStockValue = 0;
-  double _totalPotentialProfit = 0;
-  int _lowStockCount = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProducts();
-  }
+  String _searchQuery = '';
 
   @override
   void dispose() {
@@ -38,27 +23,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
     super.dispose();
   }
 
-  Future<void> _loadProducts() async {
-    setState(() => _isLoading = true);
-    try {
-      final products = await _repository.getProducts();
-      _calculateAnalytics(products);
-      setState(() {
-        _allProducts = products;
-        _filteredProducts = products;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), behavior: SnackBarBehavior.floating),
-        );
-      }
-    }
-  }
-
-  void _calculateAnalytics(List<ProductEntity> products) {
+  // 🚀 Helper to calculate stats dynamically
+  Map<String, dynamic> _calculateAnalytics(List<ProductEntity> products) {
     double stockValue = 0;
     double potentialProfit = 0;
     int lowStock = 0;
@@ -68,23 +34,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
       potentialProfit += ((p.salePrice - p.purchasePrice) * p.stock);
       if (p.isLowStock) lowStock++;
     }
-
-    _totalStockValue = stockValue;
-    _totalPotentialProfit = potentialProfit;
-    _lowStockCount = lowStock;
+    return {'value': stockValue, 'profit': potentialProfit, 'low': lowStock};
   }
 
-  void _filterProducts(String query) {
-    setState(() {
-      _filteredProducts = _allProducts.where((product) {
-        final nameMatch = product.name.toLowerCase().contains(query.toLowerCase());
-        final barcodeMatch = product.barcode?.toLowerCase().contains(query.toLowerCase()) ?? false;
-        return nameMatch || barcodeMatch;
-      }).toList();
-    });
-  }
-
-  // 🚀 NEW: Function to handle scanning
   Future<void> _onScanPressed() async {
     final String? scannedCode = await Navigator.push(
       context,
@@ -92,22 +44,35 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
 
     if (scannedCode != null && scannedCode.isNotEmpty) {
-      _searchController.text = scannedCode;
-      _filterProducts(scannedCode);
+      setState(() {
+        _searchController.text = scannedCode;
+        _searchQuery = scannedCode;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Riverpod se real-time data watch kar rahe hain
+    final allProducts = ref.watch(inventoryProvider);
+
+    // Filtering logic
+    final filteredProducts = allProducts.where((product) {
+      final query = _searchQuery.toLowerCase();
+      final nameMatch = product.name.toLowerCase().contains(query);
+      final barcodeMatch = product.barcode?.toLowerCase().contains(query) ?? false;
+      return nameMatch || barcodeMatch;
+    }).toList();
+
+    // Stats calculations
+    final stats = _calculateAnalytics(allProducts);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFF0F172A),
-        title: const Text(
-          'Inventory Master',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
+        title: const Text('Inventory Master', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
@@ -118,7 +83,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
             icon: const Icon(Icons.sync_rounded, color: Colors.white),
             onPressed: () {
               _searchController.clear();
-              _loadProducts();
+              setState(() => _searchQuery = '');
+              ref.read(inventoryProvider.notifier).fetchProducts(); // 🚀 Refresh logic
             },
           ),
         ],
@@ -130,23 +96,17 @@ class _InventoryScreenState extends State<InventoryScreen> {
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
             decoration: const BoxDecoration(
               color: Color(0xFF0F172A),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
+              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Container(
                     height: 50,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(15)),
                     child: TextField(
                       controller: _searchController,
-                      onChanged: _filterProducts,
+                      onChanged: (val) => setState(() => _searchQuery = val),
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Search products...',
@@ -159,7 +119,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           icon: const Icon(Icons.close, color: Colors.white70, size: 20),
                           onPressed: () {
                             _searchController.clear();
-                            _filterProducts('');
+                            setState(() => _searchQuery = '');
                           },
                         )
                             : null,
@@ -168,16 +128,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                // 🚀 NEW: Scanner Button
                 GestureDetector(
                   onTap: _onScanPressed,
                   child: Container(
-                    height: 50,
-                    width: 50,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981), // Modern Green
-                      borderRadius: BorderRadius.circular(15),
-                    ),
+                    height: 50, width: 50,
+                    decoration: BoxDecoration(color: const Color(0xFF10B981), borderRadius: BorderRadius.circular(15)),
                     child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
                   ),
                 ),
@@ -185,49 +140,53 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ),
 
-          if (!_isLoading && _allProducts.isNotEmpty)
+          if (allProducts.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildStatChip(
-                        'Stock Value',
-                        'Rs. ${_totalStockValue.toStringAsFixed(0)}',
-                        const Color(0xFF6366F1),
-                        Icons.account_balance_wallet_rounded
-                    ),
+                    _buildStatChip('Stock Value', 'Rs. ${stats['value'].toStringAsFixed(0)}', const Color(0xFF6366F1), Icons.account_balance_wallet_rounded),
                     const SizedBox(width: 12),
-                    _buildStatChip(
-                        'Potential Profit',
-                        'Rs. ${_totalPotentialProfit.toStringAsFixed(0)}',
-                        const Color(0xFF10B981),
-                        Icons.trending_up_rounded
-                    ),
+                    _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded),
                     const SizedBox(width: 12),
-                    _buildStatChip(
-                        'Low Stock Items',
-                        '$_lowStockCount Items',
-                        const Color(0xFFEF4444),
-                        Icons.warning_amber_rounded
-                    ),
+                    _buildStatChip('Low Stock Items', '${stats['low']} Items', const Color(0xFFEF4444), Icons.warning_amber_rounded),
                   ],
                 ),
               ),
             ),
 
           Expanded(
-            child: _isLoading
+            child: allProducts.isEmpty && _searchQuery.isEmpty
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
-                : _filteredProducts.isEmpty
+                : filteredProducts.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: _filteredProducts.length,
+              itemCount: filteredProducts.length,
               itemBuilder: (context, index) {
-                final product = _filteredProducts[index];
-                return _buildProductCard(product);
+                final product = filteredProducts[index];
+                // 🚀 NEW: Swipe to Delete Logic
+                return Dismissible(
+                  key: Key(product.id),
+                  direction: DismissDirection.endToStart,
+                  confirmDismiss: (direction) => _showDeleteConfirmation(context, product.name),
+                  onDismissed: (direction) {
+                    ref.read(inventoryProvider.notifier).deleteProduct(product.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${product.name} removed from inventory'), backgroundColor: Colors.red),
+                    );
+                  },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(20)),
+                    child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
+                  ),
+                  child: _buildProductCard(product),
+                );
               },
             ),
           ),
@@ -236,11 +195,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF0F172A),
         onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ProductFormScreen()),
-          );
-          if (result == true) _loadProducts();
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductFormScreen()));
+          // Riverpod automatically updates UI, no need for manual _loadProducts()
         },
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text('Add Product', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -254,25 +210,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: color.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
         border: Border.all(color: color.withOpacity(0.1), width: 1),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 18),
-          ),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18)),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,25 +237,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: isLow ? Colors.redAccent : const Color(0xFF10B981),
-                width: 6,
-              ),
-            ),
-          ),
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: isLow ? Colors.redAccent : const Color(0xFF10B981), width: 6))),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -321,19 +251,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        product.name,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
+                      Text(product.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
                       const SizedBox(height: 4),
-                      Text(
-                        'Category: ${product.category ?? "General"}',
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
-                      ),
+                      Text('Category: ${product.category ?? "General"}', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -356,11 +276,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           visualDensity: VisualDensity.compact,
                           icon: const Icon(Icons.edit_note_rounded, color: Colors.blueAccent, size: 28),
                           onPressed: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => ProductFormScreen(product: product)),
-                            );
-                            if (result == true) _loadProducts();
+                            await Navigator.push(context, MaterialPageRoute(builder: (context) => ProductFormScreen(product: product)));
                           },
                         ),
                       ],
@@ -380,10 +296,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-        Text(
-          'Rs. ${price.toStringAsFixed(0)}',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
-        ),
+        Text('Rs. ${price.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
       ],
     );
   }
@@ -391,27 +304,13 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget _buildStockBadge(int stock, bool isLow) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isLow ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-      ),
+      decoration: BoxDecoration(color: isLow ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            isLow ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
-            size: 14,
-            color: isLow ? Colors.red : Colors.green,
-          ),
+          Icon(isLow ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded, size: 14, color: isLow ? Colors.red : Colors.green),
           const SizedBox(width: 4),
-          Text(
-            '$stock Left',
-            style: TextStyle(
-              color: isLow ? Colors.red : Colors.green,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
+          Text('$stock Left', style: TextStyle(color: isLow ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
         ],
       ),
     );
@@ -424,9 +323,25 @@ class _InventoryScreenState extends State<InventoryScreen> {
         children: [
           Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          const Text(
-            'No items found',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
+          const Text('No items found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  // 🚀 NEW: Confirmation Dialog
+  Future<bool?> _showDeleteConfirmation(BuildContext context, String name) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Product?'),
+        content: Text('Are you sure you want to remove "$name" from inventory?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
