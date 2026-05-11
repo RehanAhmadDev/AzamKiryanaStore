@@ -1,33 +1,32 @@
 // lib/features/khata/presentation/pages/customer_ledger_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../../domain/entities/customer_entity.dart';
 
-class CustomerLedgerScreen extends StatefulWidget {
+class CustomerLedgerScreen extends ConsumerStatefulWidget {
   final CustomerEntity customer;
   const CustomerLedgerScreen({super.key, required this.customer});
 
   @override
-  State<CustomerLedgerScreen> createState() => _CustomerLedgerScreenState();
+  ConsumerState<CustomerLedgerScreen> createState() => _CustomerLedgerScreenState();
 }
 
-class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
+class _CustomerLedgerScreenState extends ConsumerState<CustomerLedgerScreen> {
   final _supabase = Supabase.instance.client;
   final _amountController = TextEditingController();
   final _descController = TextEditingController();
 
   List<dynamic> _transactions = [];
   bool _isLoading = true;
-
-  // 🚀 FIXED: Ye variable screen ka live balance handle karega
   late double _currentBalance;
 
   @override
   void initState() {
     super.initState();
-    // Shuru mein balance wahi hoga jo pichli screen se aaya
     _currentBalance = widget.customer.totalBalance;
     _fetchTransactions();
   }
@@ -70,7 +69,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     }
   }
 
-  Future<void> _saveEntry(String type) async {
+  Future<void> _saveEntry(String type, Color primaryColor) async {
     final String amountStr = _amountController.text.trim();
     if (amountStr.isEmpty) return;
 
@@ -78,7 +77,6 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     final String description = _descController.text.trim();
 
     try {
-      // 1. Transaction Table mein entry dalein
       await _supabase.from('khata_entries').insert({
         'customer_id': widget.customer.id,
         'amount': amount,
@@ -88,27 +86,24 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
             : description,
       });
 
-      // 🚀 2. Naya balance calculate karein (Current balance mein add/sub karein)
       final double updatedBalance = type == 'credit'
           ? _currentBalance + amount
           : _currentBalance - amount;
 
-      // 3. Customers table mein update karein
       await _supabase
           .from('customers')
           .update({'total_balance': updatedBalance})
           .eq('id', widget.customer.id);
 
       if (mounted) {
-        // 🚀 4. UI ko foran refresh karein
         setState(() {
-          _currentBalance = updatedBalance; // Balance card foran update hoga
+          _currentBalance = updatedBalance;
         });
 
-        Navigator.pop(context); // Dialog band
+        Navigator.pop(context);
         _amountController.clear();
         _descController.clear();
-        _fetchTransactions(); // List refresh
+        _fetchTransactions();
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Entry Saved Successfully!'), backgroundColor: Colors.green),
@@ -123,11 +118,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     }
   }
 
-  void _showEntryDialog(String type) {
+  void _showEntryDialog(String type, Color primaryColor) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      // 🚀 DESKTOP FIX: Constrain dialog width
       constraints: const BoxConstraints(maxWidth: 600),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) => Padding(
@@ -149,6 +143,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
               autofocus: true,
               decoration: InputDecoration(
                 labelText: 'Amount (Rs.)',
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: primaryColor), borderRadius: BorderRadius.circular(12)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -157,6 +152,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
               controller: _descController,
               decoration: InputDecoration(
                 labelText: 'Description (Optional)',
+                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: primaryColor), borderRadius: BorderRadius.circular(12)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -169,7 +165,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
                   backgroundColor: type == 'credit' ? const Color(0xFFEF4444) : const Color(0xFF10B981),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: () => _saveEntry(type),
+                onPressed: () => _saveEntry(type, primaryColor),
                 child: const Text('Confirm Entry', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
@@ -182,10 +178,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Theme Watch
+    final themeState = ref.watch(themeProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -195,43 +193,43 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
           },
         ),
         title: Text(widget.customer.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic
         elevation: 0,
       ),
-      // 🚀 DESKTOP FIX: Body inside Centered ConstrainedBox
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          // 🚀 DESKTOP WIDTH FIX: 1200px
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
-              _buildBalanceCard(),
-              _buildTransactionList(),
+              _buildBalanceCard(themeState.primaryColor),
+              _buildTransactionList(themeState.primaryColor),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomActionButtons(),
+      bottomNavigationBar: _buildBottomActionButtons(themeState.primaryColor),
     );
   }
 
-  Widget _buildBalanceCard() {
+  Widget _buildBalanceCard(Color primaryColor) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(25),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+      decoration: BoxDecoration(
+        color: primaryColor, // 🚀 Dynamic
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
       ),
       child: Column(
         children: [
           const Text('Current Net Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 8),
           Text(
-            'Rs. ${_currentBalance.abs().toStringAsFixed(0)}', // 🚀 FIXED
+            'Rs. ${_currentBalance.abs().toStringAsFixed(0)}',
             style: TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.bold,
-              color: _currentBalance >= 0 ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+              color: _currentBalance >= 0 ? const Color(0xFF10B981) : Colors.redAccent,
             ),
           ),
           Text(
@@ -243,10 +241,10 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     );
   }
 
-  Widget _buildTransactionList() {
+  Widget _buildTransactionList(Color primaryColor) {
     return Expanded(
       child: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)))
+          ? Center(child: CircularProgressIndicator(color: primaryColor))
           : _transactions.isEmpty
           ? const Center(child: Text('No transactions yet.', style: TextStyle(color: Colors.grey, fontSize: 16)))
           : ListView.builder(
@@ -265,8 +263,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey.shade200)),
             child: ListTile(
-              // Hover color for desktop UX
-              hoverColor: Colors.grey.shade50,
+              hoverColor: primaryColor.withOpacity(0.05),
               leading: Icon(isCredit ? Icons.arrow_upward : Icons.arrow_downward, color: isCredit ? Colors.red : Colors.green),
               title: Text(description, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               subtitle: Text(DateFormat('dd MMM yyyy, hh:mm a').format(date), style: const TextStyle(fontSize: 11)),
@@ -278,14 +275,13 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     );
   }
 
-  Widget _buildBottomActionButtons() {
+  Widget _buildBottomActionButtons(Color primaryColor) {
     return Container(
       color: Colors.white,
       child: SafeArea(
         child: Center(
-          // 🚀 DESKTOP FIX: Bottom bar constrained to align with the body
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 800),
+            constraints: const BoxConstraints(maxWidth: 1200),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -297,7 +293,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () => _showEntryDialog('credit'),
+                      onPressed: () => _showEntryDialog('credit', primaryColor),
                       child: const Text('Give Credit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),
@@ -309,7 +305,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () => _showEntryDialog('payment'),
+                      onPressed: () => _showEntryDialog('payment', primaryColor),
                       child: const Text('Receive Payment', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ),

@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../../domain/entities/product_entity.dart';
 import '../state/inventory_provider.dart';
 import 'barcode_scanner_view.dart';
@@ -57,7 +58,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     super.dispose();
   }
 
-  Future<void> _scanBarcode() async {
+  Future<void> _scanBarcode(Color primaryColor) async {
     final String? scannedCode = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const BarcodeScannerView()),
@@ -116,14 +117,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeState = ref.watch(themeProvider); // 🚀 Theme State Watch
     final isEditMode = widget.product != null;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Color
         elevation: 0,
-        title: Text(isEditMode ? 'Edit Product' : 'Add New Item', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(isEditMode ? 'Edit Product' : 'Add New Item',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
@@ -135,19 +138,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
-      // 🚀 DESKTOP FIX: Form wrapped in Centered ConstrainedBox to prevent text fields from stretching
+          ? Center(child: CircularProgressIndicator(color: themeState.primaryColor))
           : Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
-          child: SingleChildScrollView(
+          // 🚀 DESKTOP WIDTH FIX: 1200px for flexible wide layout
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: SingleChildScrollView( // 🚀 Scroller Fix
             child: Column(
               children: [
                 Container(
-                  height: 40,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0F172A),
-                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: themeState.primaryColor, // 🚀 Sync with Header
+                    borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                   ),
                 ),
                 Padding(
@@ -168,16 +171,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   icon: Icons.qr_code_2_rounded,
                                   keyboardType: TextInputType.text,
                                   isRequired: false,
+                                  primaryColor: themeState.primaryColor,
                                 ),
                               ),
                               const SizedBox(width: 10),
                               GestureDetector(
-                                onTap: _scanBarcode,
+                                onTap: () => _scanBarcode(themeState.primaryColor),
                                 child: Container(
                                   height: 55,
                                   width: 55,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981),
+                                    color: themeState.primaryColor, // 🚀 Sync Scanner Icon
                                     borderRadius: BorderRadius.circular(15),
                                   ),
                                   child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
@@ -191,9 +195,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             label: 'Product Name',
                             icon: Icons.shopping_bag_rounded,
                             keyboardType: TextInputType.name,
+                            primaryColor: themeState.primaryColor,
                           ),
                           const SizedBox(height: 16),
-                          _buildCategoryDropdown(),
+                          _buildCategoryDropdown(themeState.primaryColor),
                         ]),
 
                         const SizedBox(height: 24),
@@ -208,6 +213,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   icon: Icons.south_east_rounded,
                                   keyboardType: TextInputType.number,
                                   prefixText: 'Rs. ',
+                                  primaryColor: themeState.primaryColor,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -218,6 +224,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   icon: Icons.north_east_rounded,
                                   keyboardType: TextInputType.number,
                                   prefixText: 'Rs. ',
+                                  primaryColor: themeState.primaryColor,
                                 ),
                               ),
                             ],
@@ -235,6 +242,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   label: 'Initial Stock',
                                   icon: Icons.inventory_2_rounded,
                                   keyboardType: TextInputType.number,
+                                  primaryColor: themeState.primaryColor,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -244,6 +252,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   label: 'Low Stock Alert',
                                   icon: Icons.notification_important_rounded,
                                   keyboardType: TextInputType.number,
+                                  primaryColor: themeState.primaryColor,
                                 ),
                               ),
                             ],
@@ -254,14 +263,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 18),
-                            backgroundColor: const Color(0xFF0F172A),
+                            backgroundColor: themeState.primaryColor, // 🚀 Sync Save Button
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                             elevation: 4,
                           ),
                           onPressed: _saveProduct,
                           child: const Text('Save To Inventory', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 40), // Extra space for scrolling comfort
                       ],
                     ),
                   ),
@@ -293,12 +302,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown() {
+  Widget _buildCategoryDropdown(Color primaryColor) {
     return DropdownButtonFormField<String>(
       value: _selectedCategory,
       decoration: InputDecoration(
         labelText: 'Category',
-        prefixIcon: const Icon(Icons.category_rounded, color: Color(0xFF64748B)),
+        labelStyle: TextStyle(color: primaryColor.withOpacity(0.7)),
+        prefixIcon: Icon(Icons.category_rounded, color: primaryColor.withOpacity(0.6)),
         filled: true,
         fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
@@ -313,6 +323,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     required String label,
     required IconData icon,
     required TextInputType keyboardType,
+    required Color primaryColor,
     String? prefixText,
     bool isRequired = true,
   }) {
@@ -321,12 +332,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(color: primaryColor.withOpacity(0.7)),
         prefixText: prefixText,
-        prefixIcon: Icon(icon, color: const Color(0xFF64748B), size: 20),
+        prefixIcon: Icon(icon, color: primaryColor.withOpacity(0.6), size: 20),
         filled: true,
         fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: primaryColor, width: 1.5)),
       ),
       validator: isRequired ? (val) => (val == null || val.trim().isEmpty) ? 'Required' : null : null,
     );

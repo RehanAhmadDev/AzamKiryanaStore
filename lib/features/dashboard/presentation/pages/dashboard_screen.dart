@@ -7,17 +7,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:async/async.dart';
 
+import '../../../../core/theme/theme_provider.dart';
+
 import '../../../khata/presentation/pages/khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
 import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 
-// Inventory aur Provider imports
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 import '../../../inventory/presentation/state/inventory_provider.dart';
 
-// Expense Screens & Widgets
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
 
@@ -30,7 +30,6 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
-  // 🚀 HIGHLY REACTIVE: Combined Real-time Stream
   Stream<Map<String, double>> _businessStatsStream() {
     final client = Supabase.instance.client;
 
@@ -74,11 +73,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeState = ref.watch(themeProvider);
     final customerState = ref.watch(customerProvider);
     final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 5);
 
     return Scaffold(
-      drawer: _buildSideDrawer(context),
+      drawer: _buildSideDrawer(context, ref),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -90,10 +90,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              _buildPremiumHeader(context),
+              _buildPremiumHeader(context, themeState.primaryColor),
               Expanded(
                 child: customerState.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+                  loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
                     return StreamBuilder<Map<String, double>>(
@@ -108,13 +108,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         double totalCombinedSales = cashSales + khataSales;
 
                         double totalToReceive = 0;
-                        double totalToPay = 0;
-
                         for (var customer in customers) {
                           if (customer.totalBalance > 0) {
                             totalToReceive += customer.totalBalance;
-                          } else if (customer.totalBalance < 0) {
-                            totalToPay += customer.totalBalance.abs();
                           }
                         }
 
@@ -123,10 +119,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             await ref.read(customerProvider.notifier).loadCustomers();
                             await ref.read(inventoryProvider.notifier).fetchProducts();
                           },
-                          // 🚀 DESKTOP FIX: Main Dashboard Content Constrained and Centered
                           child: Center(
                             child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 800),
+                              // 🚀 DESKTOP WIDTH FIX: 1200px for a better professional look
+                              constraints: const BoxConstraints(maxWidth: 1200),
                               child: SingleChildScrollView(
                                 padding: const EdgeInsets.all(20.0),
                                 physics: const AlwaysScrollableScrollPhysics(),
@@ -138,7 +134,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       const SizedBox(height: 24),
                                     ],
 
-                                    const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                    Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                     const SizedBox(height: 12),
                                     Row(
                                       children: [
@@ -168,7 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 32),
-                                    const Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                    Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                     const SizedBox(height: 16),
 
                                     _buildGlassCard(
@@ -254,7 +250,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
-          hoverColor: Colors.grey.shade100, // 🚀 DESKTOP FIX: Hover Effect added
+          hoverColor: Colors.grey.shade100,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 20),
             decoration: BoxDecoration(
@@ -275,12 +271,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildPremiumHeader(BuildContext context) {
+  Widget _buildPremiumHeader(BuildContext context, Color headerColor) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+      decoration: BoxDecoration(
+        color: headerColor,
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
       ),
       child: Row(
         children: [
@@ -331,44 +327,52 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildSideDrawer(BuildContext context) {
+  Widget _buildSideDrawer(BuildContext context, WidgetRef ref) {
     return Drawer(
       backgroundColor: Colors.white,
-      child: ListView(
-        padding: EdgeInsets.zero,
+      child: Column(
         children: [
-          const DrawerHeader(
-            decoration: BoxDecoration(color: Color(0xFF0F172A)),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
               children: [
-                Icon(Icons.storefront, color: Colors.white, size: 40),
-                SizedBox(height: 10),
-                Text('Main Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                DrawerHeader(
+                  decoration: BoxDecoration(color: ref.watch(themeProvider).primaryColor),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.storefront, color: Colors.white, size: 40),
+                      SizedBox(height: 10),
+                      Text('Main Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+                _drawerItem(icon: Icons.dashboard_rounded, title: 'Dashboard', onTap: () => Navigator.pop(context)),
+                _drawerItem(icon: Icons.menu_book_rounded, title: 'Customer Khata', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
+                }),
+                _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
+                }),
+                _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
+                }),
+                _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ReceivablesScreen()));
+                }),
+                _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen()));
+                }),
+
+                _buildThemeSelector(context, ref),
               ],
             ),
           ),
-          _drawerItem(icon: Icons.dashboard_rounded, title: 'Dashboard', onTap: () => Navigator.pop(context)),
-          _drawerItem(icon: Icons.menu_book_rounded, title: 'Customer Khata', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const KhataScreen()));
-          }),
-          _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
-          }),
-          _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
-          }),
-          _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const ReceivablesScreen()));
-          }),
-          _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen()));
-          }),
         ],
       ),
     );
@@ -378,8 +382,60 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFF64748B)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-      hoverColor: Colors.grey.shade100, // 🚀 DESKTOP FIX: Hover Effect added to drawer
+      hoverColor: Colors.grey.shade100,
       onTap: onTap,
+    );
+  }
+
+  Widget _buildThemeSelector(BuildContext context, WidgetRef ref) {
+    final themeState = ref.watch(themeProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(),
+          const Text("App Appearance", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF64748B))),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 80,
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5, mainAxisSpacing: 8, crossAxisSpacing: 8),
+              itemCount: appThemes.length,
+              itemBuilder: (context, index) {
+                return GestureDetector(
+                  onTap: () => ref.read(themeProvider.notifier).changeColor(appThemes[index]),
+                  child: CircleAvatar(
+                    backgroundColor: appThemes[index],
+                    radius: 15,
+                    child: themeState.primaryColor == appThemes[index]
+                        ? const Icon(Icons.check, color: Colors.white, size: 12) : null,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Font Size:", style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+              DropdownButton<AppFontSize>(
+                value: themeState.fontSize,
+                onChanged: (val) => ref.read(themeProvider.notifier).changeFontSize(val!),
+                items: const [
+                  DropdownMenuItem(value: AppFontSize.small, child: Text("Small")),
+                  DropdownMenuItem(value: AppFontSize.medium, child: Text("Medium")),
+                  DropdownMenuItem(value: AppFontSize.large, child: Text("Large")),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

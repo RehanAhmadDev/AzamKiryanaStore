@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../../domain/entities/customer_entity.dart';
 import '../../domain/entities/khata_entry_entity.dart';
 
@@ -18,6 +19,8 @@ class CustomerDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 🚀 Theme State Watch
+    final themeState = ref.watch(themeProvider);
     final transactionState = ref.watch(transactionProvider(customer.id));
     final customerListState = ref.watch(customerProvider);
 
@@ -34,7 +37,6 @@ class CustomerDetailScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -44,11 +46,11 @@ class CustomerDetailScreen extends ConsumerWidget {
           },
         ),
         title: Text(currentCustomer.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined, color: Colors.blueAccent),
+            icon: const Icon(Icons.edit_outlined, color: Colors.white70),
             tooltip: 'Edit Contact Details',
             onPressed: () {
               showDialog(
@@ -60,7 +62,7 @@ class CustomerDetailScreen extends ConsumerWidget {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: Colors.redAccent),
+            icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
             tooltip: 'View & Print PDF',
             onPressed: () {
               final entries = transactionState.value ?? [];
@@ -78,26 +80,26 @@ class CustomerDetailScreen extends ConsumerWidget {
           const SizedBox(width: 8),
         ],
       ),
-      // 🚀 DESKTOP FIX: Center aur ConstrainedBox for a professional ledger view on wide screens
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          // 🚀 DESKTOP WIDTH FIX: 1200px for a professional ledger view
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
-              _buildBalanceHeader(currentCustomer, isReceivable),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              _buildBalanceHeader(currentCustomer, isReceivable, themeState.primaryColor), // 🚀 Pass Theme Color
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 child: Row(
                   children: [
-                    Icon(Icons.history, size: 20, color: Colors.grey),
-                    SizedBox(width: 8),
-                    Text('Transaction History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Icon(Icons.history, size: 20, color: themeState.primaryColor.withOpacity(0.6)),
+                    const SizedBox(width: 8),
+                    const Text('Transaction History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ],
                 ),
               ),
               Expanded(
                 child: transactionState.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+                  loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
                   error: (error, stack) => Center(child: Text('Error: $error')),
                   data: (entries) {
                     if (entries.isEmpty) {
@@ -122,14 +124,14 @@ class CustomerDetailScreen extends ConsumerWidget {
                             decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(12)),
                             child: const Icon(Icons.delete_forever, color: Colors.white, size: 28),
                           ),
-                          child: _buildTransactionItem(context, ref, entry),
+                          child: _buildTransactionItem(context, ref, entry, themeState.primaryColor),
                         );
                       },
                     );
                   },
                 ),
               ),
-              _buildActionButtons(context),
+              _buildActionButtons(context, themeState.primaryColor), // 🚀 Pass Theme Color
             ],
           ),
         ),
@@ -137,7 +139,7 @@ class CustomerDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTransactionItem(BuildContext context, WidgetRef ref, KhataEntryEntity entry) {
+  Widget _buildTransactionItem(BuildContext context, WidgetRef ref, KhataEntryEntity entry, Color primaryColor) {
     final bool isGave = entry.type == EntryType.gave;
     final String dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(entry.date);
     final String displayNotes = (entry.notes != null && entry.notes!.isNotEmpty) ? entry.notes! : (isGave ? "Gave" : "Got");
@@ -168,7 +170,7 @@ class CustomerDetailScreen extends ConsumerWidget {
           ),
           const SizedBox(width: 4),
           IconButton(
-            icon: Icon(Icons.edit_outlined, color: Colors.blue.shade400, size: 20),
+            icon: Icon(Icons.edit_outlined, color: primaryColor.withOpacity(0.6), size: 20),
             onPressed: () {
               showDialog(
                 context: context,
@@ -180,27 +182,18 @@ class CustomerDetailScreen extends ConsumerWidget {
               );
             },
           ),
-          IconButton(
-            icon: Icon(Icons.delete_outline, color: Colors.grey.shade400, size: 20),
-            onPressed: () async {
-              final confirmed = await _showDeleteConfirmation(context);
-              if (confirmed == true) {
-                ref.read(customerProvider.notifier).deleteEntry(entry.id, customer.id);
-              }
-            },
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildBalanceHeader(CustomerEntity currentCustomer, bool isReceivable) {
+  Widget _buildBalanceHeader(CustomerEntity currentCustomer, bool isReceivable, Color primaryColor) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Color(0xFF0F172A),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
+      decoration: BoxDecoration(
+        color: primaryColor, // 🚀 Dynamic Theme Color
+        borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
       ),
       child: Column(
         children: [
@@ -215,7 +208,7 @@ class CustomerDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context, Color primaryColor) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

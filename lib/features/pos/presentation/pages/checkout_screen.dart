@@ -2,8 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/theme_provider.dart';
+
 import '../state/cart_provider.dart';
-// Naya Inventory Provider import kiya
 import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 import '../../../khata/domain/entities/khata_entry_entity.dart';
@@ -18,7 +19,6 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _isLoading = false;
 
-  // --- 💰 FUNCTION: Calculate Total Profit ---
   double _calculateTotalProfit() {
     final cartItems = ref.read(cartProvider);
     final allProducts = ref.read(inventoryProvider);
@@ -26,20 +26,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     for (var cartItem in cartItems) {
       try {
-        // Inventory se product ki purchase price nikalna
         final product = allProducts.firstWhere((p) => p.id == cartItem.productId);
         double itemProfit = (cartItem.price - product.purchasePrice) * cartItem.quantity;
         totalProfit += itemProfit;
       } catch (e) {
-        // Agar product na mile toh default 0 profit
         debugPrint("Profit calculation error for ${cartItem.name}: $e");
       }
     }
     return totalProfit;
   }
 
-  // --- 💵 FUNCTION: Handle Cash Payment ---
   Future<void> _processCashPayment() async {
+    final themeState = ref.read(themeProvider);
     final cartItems = ref.read(cartProvider);
     final totalPrice = ref.read(cartProvider.notifier).totalPrice;
     final totalProfit = _calculateTotalProfit();
@@ -47,7 +45,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Stock kam karein aur Sale record save karein
       for (var item in cartItems) {
         await ref.read(inventoryProvider.notifier).reduceStock(item.productId, item.quantity);
       }
@@ -81,11 +78,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  void _processKhataPayment(double totalAmount) {
+  void _processKhataPayment(double totalAmount, Color primaryColor) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      // 🚀 DESKTOP FIX: Bottom sheet width constraint so it doesn't stretch full width on Windows
       constraints: const BoxConstraints(maxWidth: 600),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -98,26 +94,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 20),
-              // Constrain height explicitly to avoid overflow issues on desktop
               constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Select Customer for Khata',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
                   ),
                   const SizedBox(height: 10),
                   const Divider(),
                   Expanded(
                     child: customerState.when(
-                      loading: () => const Center(child: CircularProgressIndicator()),
+                      loading: () => Center(child: CircularProgressIndicator(color: primaryColor)),
                       error: (err, stack) => Center(child: Text('Error: $err')),
                       data: (customers) {
                         if (customers.isEmpty) {
-                          return const Center(
-                            child: Text('No customers found.', textAlign: TextAlign.center),
-                          );
+                          return const Center(child: Text('No customers found.', textAlign: TextAlign.center));
                         }
 
                         return ListView.builder(
@@ -126,8 +119,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             final customer = customers[index];
                             return ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
-                                child: Text(customer.name[0].toUpperCase()),
+                                backgroundColor: primaryColor.withOpacity(0.1),
+                                child: Text(customer.name[0].toUpperCase(), style: TextStyle(color: primaryColor)),
                               ),
                               title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text(customer.phone),
@@ -155,7 +148,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Stock aur Sale record (Profit ke sath)
       for (var item in cartItems) {
         await ref.read(inventoryProvider.notifier).reduceStock(item.productId, item.quantity);
       }
@@ -205,13 +197,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Theme watch
+    final themeState = ref.watch(themeProvider);
     final cartList = ref.watch(cartProvider);
     final totalPrice = ref.watch(cartProvider.notifier).totalPrice;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -221,15 +214,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           },
         ),
         title: const Text('Checkout Bill', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic
         elevation: 0,
       ),
       body: Stack(
         children: [
-          // 🚀 DESKTOP FIX: Centered ConstrainedBox for Main Layout
+          // 🚀 DESKTOP FIX: Responsive width 1200
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
+              constraints: const BoxConstraints(maxWidth: 1200),
               child: cartList.isEmpty
                   ? const Center(child: Text('Your cart is empty!'))
                   : Column(
@@ -289,7 +282,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                              Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+                              Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: themeState.primaryColor)),
                             ],
                           ),
                           const SizedBox(height: 20),
@@ -302,7 +295,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
-                                  onPressed: _isLoading ? null : () => _processKhataPayment(totalPrice),
+                                  onPressed: _isLoading ? null : () => _processKhataPayment(totalPrice, themeState.primaryColor),
                                   icon: const Icon(Icons.menu_book, color: Colors.white),
                                   label: const Text('Khata (Credit)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ),
@@ -311,7 +304,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               Expanded(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF10B981),
+                                    backgroundColor: themeState.primaryColor, // 🚀 Dynamic
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
@@ -331,7 +324,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
           ),
           if (_isLoading)
-            const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+            Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
         ],
       ),
     );

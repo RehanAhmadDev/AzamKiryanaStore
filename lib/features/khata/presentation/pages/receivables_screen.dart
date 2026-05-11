@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../state/state/khata_provider.dart';
 import 'customer_detail_screen.dart';
 
@@ -25,12 +26,13 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Theme State Watch
+    final themeState = ref.watch(themeProvider);
     final customerState = ref.watch(customerProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -43,7 +45,7 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
           'Receivables & Payables',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -54,7 +56,7 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
         ],
       ),
       body: customerState.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+        loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
         error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: Colors.red))),
         data: (customers) {
           double totalReceivables = 0;
@@ -74,10 +76,10 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
             return name.contains(_searchQuery.toLowerCase()) || phone.contains(_searchQuery.toLowerCase());
           }).toList();
 
-          // 🚀 DESKTOP FIX: Center aur ConstrainedBox for Dashboard feel
           return Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 800),
+              // 🚀 DESKTOP WIDTH FIX: 1200px for a professional wide layout
+              constraints: const BoxConstraints(maxWidth: 1200),
               child: Column(
                 children: [
                   // 📊 Summary Cards
@@ -115,16 +117,20 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                       onChanged: (value) => setState(() => _searchQuery = value),
                       decoration: InputDecoration(
                         hintText: 'Search contacts...',
-                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        prefixIcon: Icon(Icons.search, color: themeState.primaryColor.withOpacity(0.5)),
                         filled: true,
                         fillColor: const Color(0xFFF8FAFC),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: themeState.primaryColor, width: 1),
+                        ),
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ),
 
-                  // 📋 Filtered List
+                  // 📋 List
                   Expanded(
                     child: filteredCustomers.isEmpty
                         ? const Center(child: Text('No matching records found.', style: TextStyle(color: Colors.grey)))
@@ -137,14 +143,14 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
                         final bool isReceivable = customer.totalBalance > 0;
                         final Color statusColor = isReceivable ? const Color(0xFF10B981) : (customer.totalBalance < 0 ? const Color(0xFFEF4444) : Colors.grey);
 
-                        // 🚀 DESKTOP FIX: Material widget for proper hover color on ListTile
                         return Material(
                           color: Colors.white,
                           child: ListTile(
-                            hoverColor: Colors.grey.shade50,
+                            hoverColor: themeState.primaryColor.withOpacity(0.05), // 🚀 Dynamic Hover
                             leading: CircleAvatar(
-                              backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
-                              child: Text(customer.name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                              backgroundColor: themeState.primaryColor.withOpacity(0.1),
+                              child: Text(customer.name[0].toUpperCase(),
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                             ),
                             title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
                             subtitle: Text(customer.phone, style: const TextStyle(fontSize: 12)),

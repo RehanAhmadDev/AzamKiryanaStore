@@ -1,13 +1,15 @@
 // lib/features/khata/presentation/pages/pdf_preview_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
 import 'package:printing/printing.dart';
 import 'package:file_saver/file_saver.dart';
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../../domain/entities/customer_entity.dart';
 import '../../domain/entities/khata_entry_entity.dart';
 import '../utils/pdf_generator.dart';
 
-class PdfPreviewScreen extends StatelessWidget {
+class PdfPreviewScreen extends ConsumerWidget {
   final CustomerEntity customer;
   final List<KhataEntryEntity> entries;
 
@@ -18,11 +20,13 @@ class PdfPreviewScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 🚀 Theme State Watch
+    final themeState = ref.watch(themeProvider);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // App theme consistency
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -32,20 +36,22 @@ class PdfPreviewScreen extends StatelessWidget {
           },
         ),
         title: const Text('Ledger Preview', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      // 🚀 DESKTOP FIX: PDF Viewport constrained (slightly wider at 1000px for document reading)
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
+          // 🚀 DESKTOP WIDTH FIX: 1200px for better document viewing
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: PdfPreview(
             build: (format) => PdfGenerator.generateLedgerPdf(customer, entries),
             allowPrinting: true,
             allowSharing: true,
             canChangeOrientation: false,
             canChangePageFormat: false,
+            // 🚀 PDF Controls color sync with theme
+            loadingWidget: CircularProgressIndicator(color: themeState.primaryColor),
             pdfFileName: 'Ledger_${customer.name.replaceAll(" ", "_")}.pdf',
             actions: [
               PdfPreviewAction(
@@ -54,7 +60,6 @@ class PdfPreviewScreen extends StatelessWidget {
                   try {
                     final bytes = await build(pageFormat);
 
-                    // 🚀 FIXED: 'ext' parameter removed, extension added to 'name'
                     await FileSaver.instance.saveFile(
                       name: 'Ledger_${customer.name.replaceAll(" ", "_")}.pdf',
                       bytes: bytes,

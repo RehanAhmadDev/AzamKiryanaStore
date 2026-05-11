@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/theme/theme_provider.dart';
+
 
 import '../state/state/khata_provider.dart';
 import '../widgets/add_customer_dialog.dart';
@@ -26,12 +28,13 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Theme State Watch
+    final themeState = ref.watch(themeProvider);
     final customerState = ref.watch(customerProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -44,11 +47,10 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
           'Customer Ledger',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      // 🚀 DESKTOP FIX: Centered ConstrainedBox
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
@@ -85,7 +87,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
 
               Expanded(
                 child: customerState.when(
-                  loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+                  loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)), // 🚀 Dynamic
                   error: (error, stack) => Center(child: Text('Error: $error')),
                   data: (customers) {
                     final filteredCustomers = customers.where((customer) {
@@ -102,7 +104,6 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
                       itemBuilder: (context, index) {
                         final customer = filteredCustomers[index];
 
-                        // 🚀 Swipe to Delete Customer
                         return Dismissible(
                           key: Key(customer.id),
                           direction: DismissDirection.endToStart,
@@ -120,7 +121,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
                             ),
                             child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
                           ),
-                          child: _buildCustomerCard(context, customer),
+                          child: _buildCustomerCard(context, customer, themeState.primaryColor), // 🚀 Pass Primary Color
                         );
                       },
                     );
@@ -135,14 +136,14 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
         onPressed: () {
           showDialog(context: context, builder: (context) => const AddCustomerDialog());
         },
-        backgroundColor: const Color(0xFF10B981),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         icon: const Icon(Icons.person_add, color: Colors.white),
         label: const Text('Add Contact', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
 
-  Widget _buildCustomerCard(BuildContext context, dynamic customer) {
+  Widget _buildCustomerCard(BuildContext context, dynamic customer, Color primaryColor) {
     final bool isReceivable = customer.totalBalance >= 0;
     final Color balanceColor = isReceivable ? const Color(0xFF10B981) : Colors.red.shade600;
 
@@ -154,16 +155,15 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
           side: BorderSide(color: Colors.grey.shade200)
       ),
       child: ListTile(
-        // 🚀 DESKTOP FIX: Hover effect added
         hoverColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: CircleAvatar(
-          backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
+          backgroundColor: primaryColor.withOpacity(0.1), // 🚀 Dynamic
           radius: 25,
           child: Text(
             customer.name[0].toUpperCase(),
-            style: const TextStyle(color: Color(0xFF0F172A), fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 18), // 🚀 Dynamic
           ),
         ),
         title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -185,7 +185,6 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
                 ),
               ],
             ),
-            // Edit Button
             IconButton(
               icon: Icon(Icons.edit_outlined, color: Colors.blue.shade600),
               onPressed: () {
@@ -226,7 +225,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // 🚀 Rounded dialog shape
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete Contact?', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to delete "$name" and all their transaction records?'),
         actions: [

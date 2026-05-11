@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
 import '../widgets/expense_card.dart';
 import '../../data/models/expense_model.dart';
 import '../state/expense_provider.dart';
@@ -15,10 +16,12 @@ class ExpenseListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 🚀 Theme watch
+    final themeState = ref.watch(themeProvider);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -28,14 +31,14 @@ class ExpenseListScreen extends ConsumerWidget {
           },
         ),
         title: const Text('Expense History', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Theme Color
         elevation: 0,
         centerTitle: true,
       ),
-      // 🚀 DESKTOP FIX: Center and ConstrainedBox
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          // 🚀 DESKTOP WIDTH FIX: 1200px for wide layout
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: Supabase.instance.client
                 .from('expenses')
@@ -43,7 +46,7 @@ class ExpenseListScreen extends ConsumerWidget {
                 .order('date', ascending: false),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: Color(0xFF10B981)));
+                return Center(child: CircularProgressIndicator(color: themeState.primaryColor));
               }
 
               if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -53,13 +56,12 @@ class ExpenseListScreen extends ConsumerWidget {
               final expenses = snapshot.data!.map((e) => ExpenseModel.fromJson(e)).toList();
 
               return ListView.builder(
-                padding: const EdgeInsets.only(top: 10, bottom: 20),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 itemCount: expenses.length,
                 itemBuilder: (context, index) {
                   final expense = expenses[index];
                   bool showDateHeader = false;
 
-                  // Check if we should show date header (Today, Yesterday, etc.)
                   if (index == 0) {
                     showDateHeader = true;
                   } else {
@@ -73,44 +75,37 @@ class ExpenseListScreen extends ConsumerWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (showDateHeader) _buildDateHeader(expense.date),
+                      if (showDateHeader) _buildDateHeader(expense.date, themeState.primaryColor),
 
-                      // 🚀 Dismissible Widget For Swipe-to-Delete
                       Dismissible(
                         key: Key(expense.id ?? expense.hashCode.toString()),
-                        direction: DismissDirection.endToStart, // Sirf Right se Left swipe hoga
-                        // 🚀 NEW: Desktop/Mobile safety check before delete
+                        direction: DismissDirection.endToStart,
                         confirmDismiss: (direction) => _showDeleteConfirmation(context),
                         background: Container(
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEF4444), // Expense Red
+                            color: const Color(0xFFEF4444),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
                         ),
                         onDismissed: (direction) {
                           if (expense.id != null) {
-                            // Delete function call
                             ref.read(expenseProvider.notifier).deleteExpense(expense.id!);
-
-                            // Success message
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Expense deleted successfully'),
-                                backgroundColor: Color(0xFF10B981), // Success Green
+                                backgroundColor: Color(0xFF10B981),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
                           }
                         },
-                        // 🚀 InkWell For Tap-to-Edit
                         child: InkWell(
                           borderRadius: BorderRadius.circular(20),
-                          // 🚀 DESKTOP FIX: Hover effect
-                          hoverColor: Colors.grey.shade100,
+                          hoverColor: themeState.primaryColor.withOpacity(0.05), // 🚀 Dynamic Hover
                           onTap: () {
                             Navigator.push(
                               context,
@@ -133,7 +128,7 @@ class ExpenseListScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDateHeader(DateTime date) {
+  Widget _buildDateHeader(DateTime date, Color primaryColor) {
     String label;
     final now = DateTime.now();
     if (DateFormat('yyyy-MM-dd').format(date) == DateFormat('yyyy-MM-dd').format(now)) {
@@ -149,7 +144,7 @@ class ExpenseListScreen extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: primaryColor.withOpacity(0.8)), // 🚀 Theme Color Label
       ),
     );
   }
@@ -167,7 +162,6 @@ class ExpenseListScreen extends ConsumerWidget {
     );
   }
 
-  // 🚀 Safety confirmation dialog
   Future<bool?> _showDeleteConfirmation(BuildContext context) {
     return showDialog<bool>(
       context: context,

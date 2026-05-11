@@ -1,7 +1,7 @@
-// lib/features/inventory/presentation/pages/inventory_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/theme/theme_provider.dart';
 import '../../domain/entities/product_entity.dart';
 import '../state/inventory_provider.dart';
 import 'product_form_screen.dart';
@@ -24,7 +24,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     super.dispose();
   }
 
-  // 🚀 Helper to calculate stats dynamically
   Map<String, dynamic> _calculateAnalytics(List<ProductEntity> products) {
     double stockValue = 0;
     double potentialProfit = 0;
@@ -54,10 +53,9 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🚀 Riverpod se real-time data watch kar rahe hain
+    final themeState = ref.watch(themeProvider);
     final allProducts = ref.watch(inventoryProvider);
 
-    // Filtering logic
     final filteredProducts = allProducts.where((product) {
       final query = _searchQuery.toLowerCase();
       final nameMatch = product.name.toLowerCase().contains(query);
@@ -65,17 +63,15 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       return nameMatch || barcodeMatch;
     }).toList();
 
-    // Stats calculations
     final stats = _calculateAnalytics(allProducts);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Theme Sync
         title: const Text('Inventory Master', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        // 🚀 EXPLICIT BACK BUTTON
         leading: BackButton(
           color: Colors.white,
           onPressed: () {
@@ -95,18 +91,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ),
         ],
       ),
-      // 🚀 DESKTOP FIX: Center and ConstrainedBox for Dashboard layout
-      body: Center(
+      body: Center( // 🚀 Centered for Desktop
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 800),
+          constraints: const BoxConstraints(maxWidth: 1200), // 🚀 Professional Wide Width
           child: Column(
             children: [
-              // Modern Search Header with Scanner
+              // Search Header
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-                decoration: const BoxDecoration(
-                  color: Color(0xFF0F172A),
-                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+                decoration: BoxDecoration(
+                  color: themeState.primaryColor, // 🚀 Theme Sync
+                  borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                 ),
                 child: Row(
                   children: [
@@ -123,7 +118,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
                             prefixIcon: const Icon(Icons.search, color: Colors.white70),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
                             suffixIcon: _searchController.text.isNotEmpty
                                 ? IconButton(
                               icon: const Icon(Icons.close, color: Colors.white70, size: 20),
@@ -150,9 +145,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                 ),
               ),
 
+              // Stats Chips
               if (allProducts.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -167,9 +163,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ),
                 ),
 
+              // Product List
               Expanded(
                 child: allProducts.isEmpty && _searchQuery.isEmpty
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
+                    ? Center(child: CircularProgressIndicator(color: themeState.primaryColor))
                     : filteredProducts.isEmpty
                     ? _buildEmptyState()
                     : ListView.builder(
@@ -183,9 +180,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                       confirmDismiss: (direction) => _showDeleteConfirmation(context, product.name),
                       onDismissed: (direction) {
                         ref.read(inventoryProvider.notifier).deleteProduct(product.id);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('${product.name} removed from inventory'), backgroundColor: Colors.red),
-                        );
                       },
                       background: Container(
                         alignment: Alignment.centerRight,
@@ -194,7 +188,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(20)),
                         child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
                       ),
-                      child: _buildProductCard(product),
+                      child: _buildProductCard(product, themeState.primaryColor),
                     );
                   },
                 ),
@@ -204,7 +198,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: themeState.primaryColor, // 🚀 Theme Sync
         onPressed: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductFormScreen()));
         },
@@ -220,19 +214,19 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.08), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
         border: Border.all(color: color.withOpacity(0.1), width: 1),
       ),
       child: Row(
         children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18)),
+          Icon(icon, color: color, size: 18),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
-              Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
+              Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
             ],
           ),
         ],
@@ -240,7 +234,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildProductCard(ProductEntity product) {
+  Widget _buildProductCard(ProductEntity product, Color themeColor) {
     final bool isLow = product.isLowStock;
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -249,79 +243,28 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          decoration: BoxDecoration(border: Border(left: BorderSide(color: isLow ? Colors.redAccent : const Color(0xFF10B981), width: 6))),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(product.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1E293B))),
-                      const SizedBox(height: 4),
-                      Text('Category: ${product.category ?? "General"}', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _buildPriceInfo('Buy', product.purchasePrice),
-                          const SizedBox(width: 15),
-                          _buildPriceInfo('Sell', product.salePrice),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _buildStockBadge(product.stock, isLow),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        IconButton(
-                          visualDensity: VisualDensity.compact,
-                          icon: const Icon(Icons.edit_note_rounded, color: Colors.blueAccent, size: 28),
-                          onPressed: () async {
-                            await Navigator.push(context, MaterialPageRoute(builder: (context) => ProductFormScreen(product: product)));
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        hoverColor: themeColor.withOpacity(0.05),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: isLow ? Colors.red.shade100 : Colors.transparent),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPriceInfo(String label, double price) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
-        Text('Rs. ${price.toStringAsFixed(0)}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF334155))),
-      ],
-    );
-  }
-
-  Widget _buildStockBadge(int stock, bool isLow) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: isLow ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isLow ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded, size: 14, color: isLow ? Colors.red : Colors.green),
-          const SizedBox(width: 4),
-          Text('$stock Left', style: TextStyle(color: isLow ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12)),
-        ],
+        title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            Text('Rs. ${product.salePrice.toStringAsFixed(0)} | Stock: ${product.stock}',
+                style: const TextStyle(color: Color(0xFF64748B))),
+            if (isLow)
+              const Text('⚠️ Low Stock!', style: TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        trailing: IconButton(
+          icon: Icon(Icons.edit_note_rounded, color: themeColor),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => ProductFormScreen(product: product))),
+        ),
       ),
     );
   }
@@ -333,22 +276,21 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         children: [
           Icon(Icons.inventory_2_outlined, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          const Text('No items found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const Text('No items found', style: TextStyle(fontSize: 18, color: Colors.grey)),
         ],
       ),
     );
   }
 
-  // 🚀 NEW: Confirmation Dialog with proper styling
   Future<bool?> _showDeleteConfirmation(BuildContext context, String name) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // 🚀 Rounded shape
-        title: const Text('Delete Product?', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to remove "$name" from inventory?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Product?'),
+        content: Text('Are you sure you want to remove "$name"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),
