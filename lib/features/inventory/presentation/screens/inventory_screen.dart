@@ -1,3 +1,5 @@
+// lib/features/inventory/presentation/screens/inventory_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,8 @@ import '../../domain/entities/product_entity.dart';
 import '../state/inventory_provider.dart';
 import 'product_form_screen.dart';
 import 'barcode_scanner_view.dart';
+// 🚀 Naya Import: Low Stock Screen ke liye
+import 'low_stock_screen.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -69,7 +73,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: themeState.primaryColor, // 🚀 Theme Sync
+        backgroundColor: themeState.primaryColor,
         title: const Text('Inventory Master', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
         leading: BackButton(
@@ -91,16 +95,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ),
         ],
       ),
-      body: Center( // 🚀 Centered for Desktop
+      body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200), // 🚀 Professional Wide Width
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
               // Search Header
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
                 decoration: BoxDecoration(
-                  color: themeState.primaryColor, // 🚀 Theme Sync
+                  color: themeState.primaryColor,
                   borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                 ),
                 child: Row(
@@ -153,11 +157,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        _buildStatChip('Stock Value', 'Rs. ${stats['value'].toStringAsFixed(0)}', const Color(0xFF6366F1), Icons.account_balance_wallet_rounded),
+                        _buildStatChip('Stock Value', 'Rs. ${stats['value'].toStringAsFixed(0)}', const Color(0xFF6366F1), Icons.account_balance_wallet_rounded, null),
                         const SizedBox(width: 12),
-                        _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded),
+                        _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded, null),
                         const SizedBox(width: 12),
-                        _buildStatChip('Low Stock Items', '${stats['low']} Items', const Color(0xFFEF4444), Icons.warning_amber_rounded),
+                        // 🚀 Navigation added to Low Stock Chip
+                        _buildStatChip(
+                          'Low Stock Items',
+                          '${stats['low']} Items',
+                          const Color(0xFFEF4444),
+                          Icons.warning_amber_rounded,
+                              () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LowStockScreen())),
+                        ),
                       ],
                     ),
                   ),
@@ -198,7 +209,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: themeState.primaryColor, // 🚀 Theme Sync
+        backgroundColor: themeState.primaryColor,
         onPressed: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductFormScreen()));
         },
@@ -208,28 +219,40 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  Widget _buildStatChip(String label, String value, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: color.withOpacity(0.1), width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
-              Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
-            ],
-          ),
-        ],
+  // 🚀 Added onTap to StatChip for better interaction
+  Widget _buildStatChip(String label, String value, Color color, IconData icon, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+          border: Border.all(color: color.withOpacity(0.1), width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B))),
+                Row(
+                  children: [
+                    Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+                    if (onTap != null) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_ios_rounded, size: 10, color: color),
+                    ]
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

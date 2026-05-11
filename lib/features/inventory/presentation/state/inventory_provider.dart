@@ -28,6 +28,24 @@ class InventoryNotifier extends StateNotifier<List<ProductEntity>> {
     }
   }
 
+  // 🚀 Updated Method: Manual Map use kiya hai taake toJson ka error khatam ho jaye
+  Future<void> updateProduct(ProductEntity updatedProduct) async {
+    try {
+      // 1. Database mein sirf stock update karein
+      await Supabase.instance.client
+          .from('products')
+          .update({
+        'stock': updatedProduct.stock,
+      })
+          .eq('id', updatedProduct.id);
+
+      // 2. State refresh karein taake UI foran update ho jaye
+      await fetchProducts();
+    } catch (e) {
+      print("Error updating product: $e");
+    }
+  }
+
   Future<void> reduceStock(String productId, int quantity) async {
     state = state.map((product) {
       if (product.id == productId) {
@@ -47,25 +65,17 @@ class InventoryNotifier extends StateNotifier<List<ProductEntity>> {
     }
   }
 
-  // 🚀 NEW: Delete Product Logic (Soft Delete taake receipts kharab na hon)
   Future<void> deleteProduct(String productId) async {
-    // 1. UI ko foran update karne ke liye list se nikal dein (Optimistic Update)
     final previousState = state;
     state = state.where((p) => p.id != productId).toList();
 
     try {
-      // 2. Database (Supabase) mein is_active = false kar dein
       await repository.deleteProduct(productId);
     } catch (e) {
       print("Error deleting product: $e");
-      // Agar error aaye toh wapas purani list dikha dein
       state = previousState;
     }
   }
-
-  // ==========================================
-  // 💰 ADVANCED: PROFIT TRACKING SYSTEM 💰
-  // ==========================================
 
   Future<void> saveSaleWithProfit({
     required double totalAmount,

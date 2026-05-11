@@ -16,12 +16,12 @@ import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
 
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
+import '../../../inventory/presentation/screens/low_stock_screen.dart';
 import '../../../inventory/presentation/state/inventory_provider.dart';
 
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
 
-// 🚀 Naya Import
 import 'business_reports_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -78,7 +78,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
     final customerState = ref.watch(customerProvider);
-    final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 5);
+
+    // 🚀 SYNCED THRESHOLD: Ab ye 10 par alert dikhayega
+    final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 10);
 
     return Scaffold(
       drawer: _buildSideDrawer(context, ref),
@@ -132,7 +134,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     if (lowStockItems.isNotEmpty) ...[
-                                      _buildLowStockAlert(lowStockItems),
+                                      _buildLowStockAlert(lowStockItems, context),
                                       const SizedBox(height: 24),
                                     ],
 
@@ -169,7 +171,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                     const SizedBox(height: 16),
 
-                                    // 🚀 REPORT NAVIGATION ADDED HERE
                                     GestureDetector(
                                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen())),
                                       child: _buildGlassCard(
@@ -222,29 +223,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   // --- UI COMPONENTS ---
 
-  Widget _buildLowStockAlert(List<dynamic> items) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEF2F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 24),
-              const SizedBox(width: 8),
-              const Text('Low Stock Alert!', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF991B1B))),
-              const Spacer(),
-              Text('${items.length} items', style: const TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 12)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...items.take(2).map((item) => Text('• ${item.name} (${item.stock} left)', style: const TextStyle(fontSize: 13, color: Color(0xFF7F1D1D)))),
-        ],
+  Widget _buildLowStockAlert(List<dynamic> items, BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LowStockScreen())),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFFCA5A5), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Color(0xFFEF4444), size: 24),
+                const SizedBox(width: 8),
+                const Text('Low Stock Alert!', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF991B1B))),
+                const Spacer(),
+                const Text('View List →', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...items.take(2).map((item) => Text('• ${item.name} (${item.stock} left)', style: const TextStyle(fontSize: 13, color: Color(0xFF7F1D1D)))),
+          ],
+        ),
       ),
     );
   }
@@ -363,7 +367,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
                 }),
 
-                // 🚀 REPORTS DRAWER ITEM ADDED
+                _drawerItem(icon: Icons.warning_amber_rounded, title: 'Low Stock Items', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const LowStockScreen()));
+                }),
+
                 _drawerItem(icon: Icons.analytics_rounded, title: 'Business Reports', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen()));
