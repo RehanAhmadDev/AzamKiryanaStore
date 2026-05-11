@@ -1,15 +1,16 @@
+// lib/features/inventory/presentation/pages/product_form_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../domain/entities/product_entity.dart';
-import '../state/inventory_provider.dart'; // 🚀 Imported Riverpod State
+import '../state/inventory_provider.dart';
 import 'barcode_scanner_view.dart';
 
-// 🚀 Changed to ConsumerStatefulWidget
 class ProductFormScreen extends ConsumerStatefulWidget {
   final ProductEntity? product;
 
-  const ProductFormScreen({Key? key, this.product}) : super(key: key);
+  const ProductFormScreen({super.key, this.product});
 
   @override
   ConsumerState<ProductFormScreen> createState() => _ProductFormScreenState();
@@ -91,7 +92,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         isActive: true,
       );
 
-      // 🚀 Riverpod ke zariye Repository ko access kiya
       final repository = ref.read(inventoryRepositoryProvider);
 
       if (isEditMode) {
@@ -100,7 +100,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         await repository.addProduct(productToSave);
       }
 
-      // 🚀 Naya item add ya update hone ke baad state refresh ki
       await ref.read(inventoryProvider.notifier).fetchProducts();
 
       if (mounted) Navigator.pop(context, true);
@@ -128,137 +127,148 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
         ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
-          : SingleChildScrollView(
-        child: Column(
-          children: [
-            Container(
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFF0F172A),
-                borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildSectionTitle('Basic Information'),
-                    _buildCard([
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _barcodeController,
-                              label: 'Barcode Number',
-                              icon: Icons.qr_code_2_rounded,
-                              keyboardType: TextInputType.text,
-                              isRequired: false,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          GestureDetector(
-                            onTap: _scanBarcode,
-                            child: Container(
-                              height: 55,
-                              width: 55,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                              child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildTextField(
-                        controller: _nameController,
-                        label: 'Product Name',
-                        icon: Icons.shopping_bag_rounded,
-                        keyboardType: TextInputType.name,
-                      ),
-                      const SizedBox(height: 16),
-                      _buildCategoryDropdown(),
-                    ]),
-
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Pricing Details'),
-                    _buildCard([
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _purchasePriceController,
-                              label: 'Purchase Price',
-                              icon: Icons.south_east_rounded,
-                              keyboardType: TextInputType.number,
-                              prefixText: 'Rs. ',
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _salePriceController,
-                              label: 'Sale Price',
-                              icon: Icons.north_east_rounded,
-                              keyboardType: TextInputType.number,
-                              prefixText: 'Rs. ',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ]),
-
-                    const SizedBox(height: 24),
-                    _buildSectionTitle('Inventory Tracking'),
-                    _buildCard([
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _stockController,
-                              label: 'Initial Stock',
-                              icon: Icons.inventory_2_rounded,
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildTextField(
-                              controller: _lowStockController,
-                              label: 'Low Stock Alert',
-                              icon: Icons.notification_important_rounded,
-                              keyboardType: TextInputType.number,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ]),
-
-                    const SizedBox(height: 40),
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        backgroundColor: const Color(0xFF0F172A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        elevation: 4,
-                      ),
-                      onPressed: _saveProduct,
-                      child: const Text('Save To Inventory', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                    ),
-                  ],
+      // 🚀 DESKTOP FIX: Form wrapped in Centered ConstrainedBox to prevent text fields from stretching
+          : Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 600),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                Container(
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF0F172A),
+                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+                  ),
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _buildSectionTitle('Basic Information'),
+                        _buildCard([
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _barcodeController,
+                                  label: 'Barcode Number',
+                                  icon: Icons.qr_code_2_rounded,
+                                  keyboardType: TextInputType.text,
+                                  isRequired: false,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              GestureDetector(
+                                onTap: _scanBarcode,
+                                child: Container(
+                                  height: 55,
+                                  width: 55,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF10B981),
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            controller: _nameController,
+                            label: 'Product Name',
+                            icon: Icons.shopping_bag_rounded,
+                            keyboardType: TextInputType.name,
+                          ),
+                          const SizedBox(height: 16),
+                          _buildCategoryDropdown(),
+                        ]),
+
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Pricing Details'),
+                        _buildCard([
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _purchasePriceController,
+                                  label: 'Purchase Price',
+                                  icon: Icons.south_east_rounded,
+                                  keyboardType: TextInputType.number,
+                                  prefixText: 'Rs. ',
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _salePriceController,
+                                  label: 'Sale Price',
+                                  icon: Icons.north_east_rounded,
+                                  keyboardType: TextInputType.number,
+                                  prefixText: 'Rs. ',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ]),
+
+                        const SizedBox(height: 24),
+                        _buildSectionTitle('Inventory Tracking'),
+                        _buildCard([
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _stockController,
+                                  label: 'Initial Stock',
+                                  icon: Icons.inventory_2_rounded,
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildTextField(
+                                  controller: _lowStockController,
+                                  label: 'Low Stock Alert',
+                                  icon: Icons.notification_important_rounded,
+                                  keyboardType: TextInputType.number,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ]),
+
+                        const SizedBox(height: 40),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            backgroundColor: const Color(0xFF0F172A),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            elevation: 4,
+                          ),
+                          onPressed: _saveProduct,
+                          child: const Text('Save To Inventory', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

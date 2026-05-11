@@ -85,6 +85,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
+      // 🚀 DESKTOP FIX: Bottom sheet width constraint so it doesn't stretch full width on Windows
+      constraints: const BoxConstraints(maxWidth: 600),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -95,6 +98,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             return Container(
               padding: const EdgeInsets.symmetric(vertical: 20),
+              // Constrain height explicitly to avoid overflow issues on desktop
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -206,94 +211,124 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        // 🚀 EXPLICIT BACK BUTTON
+        leading: BackButton(
+          color: Colors.white,
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text('Checkout Bill', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: const Color(0xFF0F172A),
-        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
       ),
       body: Stack(
         children: [
-          cartList.isEmpty
-              ? const Center(child: Text('Your cart is empty!'))
-              : Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: cartList.length,
-                  itemBuilder: (context, index) {
-                    final item = cartList[index];
-                    return Card(
-                      elevation: 0,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey.shade200),
-                      ),
-                      child: ListTile(
-                        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('Rs. ${item.price.toStringAsFixed(0)} x ${item.quantity}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
-                              onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).decreaseQuantity(item.productId),
-                            ),
-                            Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            IconButton(
-                              icon: const Icon(Icons.add_circle_outline, color: Color(0xFF10B981)),
-                              onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).addItem(item),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                          Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFF59E0B)),
-                              onPressed: _isLoading ? null : () => _processKhataPayment(totalPrice),
-                              icon: const Icon(Icons.menu_book, color: Colors.white),
-                              label: const Text('Khata (Credit)', style: TextStyle(color: Colors.white)),
+          // 🚀 DESKTOP FIX: Centered ConstrainedBox for Main Layout
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: cartList.isEmpty
+                  ? const Center(child: Text('Your cart is empty!'))
+                  : Column(
+                children: [
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: cartList.length,
+                      itemBuilder: (context, index) {
+                        final item = cartList[index];
+                        return Card(
+                          elevation: 0,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey.shade200),
+                          ),
+                          child: ListTile(
+                            title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text('Rs. ${item.price.toStringAsFixed(0)} x ${item.quantity}'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                                  onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).decreaseQuantity(item.productId),
+                                ),
+                                Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle_outline, color: Color(0xFF10B981)),
+                                  onPressed: _isLoading ? null : () => ref.read(cartProvider.notifier).addItem(item),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                              onPressed: _isLoading ? null : _processCashPayment,
-                              icon: const Icon(Icons.payments, color: Colors.white),
-                              label: const Text('Cash Sale', style: TextStyle(color: Colors.white)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                        );
+                      },
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, -5),
+                        )
+                      ],
+                    ),
+                    child: SafeArea(
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Total Amount', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                              Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFF59E0B),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: _isLoading ? null : () => _processKhataPayment(totalPrice),
+                                  icon: const Icon(Icons.menu_book, color: Colors.white),
+                                  label: const Text('Khata (Credit)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF10B981),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                  onPressed: _isLoading ? null : _processCashPayment,
+                                  icon: const Icon(Icons.payments, color: Colors.white),
+                                  label: const Text('Cash Sale', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           if (_isLoading)
             const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),

@@ -1,13 +1,14 @@
+// lib/features/inventory/presentation/pages/inventory_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // 🚀 Added Riverpod
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/product_entity.dart';
-import '../state/inventory_provider.dart'; // 🚀 Added Provider Import
+import '../state/inventory_provider.dart';
 import 'product_form_screen.dart';
 import 'barcode_scanner_view.dart';
 
-// 🚀 Changed to ConsumerStatefulWidget
 class InventoryScreen extends ConsumerStatefulWidget {
-  const InventoryScreen({Key? key}) : super(key: key);
+  const InventoryScreen({super.key});
 
   @override
   ConsumerState<InventoryScreen> createState() => _InventoryScreenState();
@@ -74,9 +75,14 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         backgroundColor: const Color(0xFF0F172A),
         title: const Text('Inventory Master', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
+        // 🚀 EXPLICIT BACK BUTTON
+        leading: BackButton(
+          color: Colors.white,
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
         ),
         actions: [
           IconButton(
@@ -84,119 +90,123 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             onPressed: () {
               _searchController.clear();
               setState(() => _searchQuery = '');
-              ref.read(inventoryProvider.notifier).fetchProducts(); // 🚀 Refresh logic
+              ref.read(inventoryProvider.notifier).fetchProducts();
             },
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Modern Search Header with Scanner
-          Container(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-            decoration: const BoxDecoration(
-              color: Color(0xFF0F172A),
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(15)),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Search products...',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                        prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 15),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white70, size: 20),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                            : null,
-                      ),
-                    ),
-                  ),
+      // 🚀 DESKTOP FIX: Center and ConstrainedBox for Dashboard layout
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              // Modern Search Header with Scanner
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0F172A),
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                 ),
-                const SizedBox(width: 10),
-                GestureDetector(
-                  onTap: _onScanPressed,
-                  child: Container(
-                    height: 50, width: 50,
-                    decoration: BoxDecoration(color: const Color(0xFF10B981), borderRadius: BorderRadius.circular(15)),
-                    child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (allProducts.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildStatChip('Stock Value', 'Rs. ${stats['value'].toStringAsFixed(0)}', const Color(0xFF6366F1), Icons.account_balance_wallet_rounded),
-                    const SizedBox(width: 12),
-                    _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded),
-                    const SizedBox(width: 12),
-                    _buildStatChip('Low Stock Items', '${stats['low']} Items', const Color(0xFFEF4444), Icons.warning_amber_rounded),
+                    Expanded(
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(15)),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (val) => setState(() => _searchQuery = val),
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Search products...',
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 15),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                              icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: _onScanPressed,
+                      child: Container(
+                        height: 50, width: 50,
+                        decoration: BoxDecoration(color: const Color(0xFF10B981), borderRadius: BorderRadius.circular(15)),
+                        child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
 
-          Expanded(
-            child: allProducts.isEmpty && _searchQuery.isEmpty
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
-                : filteredProducts.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: filteredProducts.length,
-              itemBuilder: (context, index) {
-                final product = filteredProducts[index];
-                // 🚀 NEW: Swipe to Delete Logic
-                return Dismissible(
-                  key: Key(product.id),
-                  direction: DismissDirection.endToStart,
-                  confirmDismiss: (direction) => _showDeleteConfirmation(context, product.name),
-                  onDismissed: (direction) {
-                    ref.read(inventoryProvider.notifier).deleteProduct(product.id);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${product.name} removed from inventory'), backgroundColor: Colors.red),
+              if (allProducts.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildStatChip('Stock Value', 'Rs. ${stats['value'].toStringAsFixed(0)}', const Color(0xFF6366F1), Icons.account_balance_wallet_rounded),
+                        const SizedBox(width: 12),
+                        _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded),
+                        const SizedBox(width: 12),
+                        _buildStatChip('Low Stock Items', '${stats['low']} Items', const Color(0xFFEF4444), Icons.warning_amber_rounded),
+                      ],
+                    ),
+                  ),
+                ),
+
+              Expanded(
+                child: allProducts.isEmpty && _searchQuery.isEmpty
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0F172A)))
+                    : filteredProducts.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = filteredProducts[index];
+                    return Dismissible(
+                      key: Key(product.id),
+                      direction: DismissDirection.endToStart,
+                      confirmDismiss: (direction) => _showDeleteConfirmation(context, product.name),
+                      onDismissed: (direction) {
+                        ref.read(inventoryProvider.notifier).deleteProduct(product.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('${product.name} removed from inventory'), backgroundColor: Colors.red),
+                        );
+                      },
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(20)),
+                        child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
+                      ),
+                      child: _buildProductCard(product),
                     );
                   },
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(color: Colors.red.shade700, borderRadius: BorderRadius.circular(20)),
-                    child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
-                  ),
-                  child: _buildProductCard(product),
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF0F172A),
         onPressed: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductFormScreen()));
-          // Riverpod automatically updates UI, no need for manual _loadProducts()
         },
         icon: const Icon(Icons.add_rounded, color: Colors.white),
         label: const Text('Add Product', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -329,15 +339,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  // 🚀 NEW: Confirmation Dialog
+  // 🚀 NEW: Confirmation Dialog with proper styling
   Future<bool?> _showDeleteConfirmation(BuildContext context, String name) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Product?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // 🚀 Rounded shape
+        title: const Text('Delete Product?', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to remove "$name" from inventory?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),

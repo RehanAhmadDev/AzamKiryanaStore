@@ -1,3 +1,5 @@
+// lib/features/khata/presentation/pages/khata_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,92 +29,106 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
     final customerState = ref.watch(customerProvider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
+        // 🚀 EXPLICIT BACK BUTTON
+        leading: BackButton(
+          color: Colors.white,
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text(
           'Customer Ledger',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: const Color(0xFF0F172A),
+        elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Container(
-        color: const Color(0xFFF8FAFC),
-        child: Column(
-          children: [
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (value) => setState(() => _searchQuery = value),
-                decoration: InputDecoration(
-                  hintText: 'Search by name or phone...',
-                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.grey),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                  )
-                      : null,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+      // 🚀 DESKTOP FIX: Centered ConstrainedBox
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: Column(
+            children: [
+              // Search Bar
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _searchQuery = value),
+                  decoration: InputDecoration(
+                    hintText: 'Search by name or phone...',
+                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                      icon: const Icon(Icons.clear, color: Colors.grey),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
               ),
-            ),
 
-            Expanded(
-              child: customerState.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, stack) => Center(child: Text('Error: $error')),
-                data: (customers) {
-                  final filteredCustomers = customers.where((customer) {
-                    final nameMatch = customer.name.toLowerCase().contains(_searchQuery.toLowerCase());
-                    final phoneMatch = customer.phone.contains(_searchQuery);
-                    return nameMatch || phoneMatch;
-                  }).toList();
+              Expanded(
+                child: customerState.when(
+                  loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
+                  error: (error, stack) => Center(child: Text('Error: $error')),
+                  data: (customers) {
+                    final filteredCustomers = customers.where((customer) {
+                      final nameMatch = customer.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                      final phoneMatch = customer.phone.contains(_searchQuery);
+                      return nameMatch || phoneMatch;
+                    }).toList();
 
-                  if (customers.isEmpty) return _buildEmptyState();
+                    if (customers.isEmpty) return _buildEmptyState();
 
-                  return ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    itemCount: filteredCustomers.length,
-                    itemBuilder: (context, index) {
-                      final customer = filteredCustomers[index];
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      itemCount: filteredCustomers.length,
+                      itemBuilder: (context, index) {
+                        final customer = filteredCustomers[index];
 
-                      // 🚀 Swipe to Delete Customer
-                      return Dismissible(
-                        key: Key(customer.id),
-                        direction: DismissDirection.endToStart,
-                        confirmDismiss: (direction) => _showDeleteCustomerDialog(context, customer.name),
-                        onDismissed: (direction) {
-                          ref.read(customerProvider.notifier).deleteCustomer(customer.id);
-                        },
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade700,
-                            borderRadius: BorderRadius.circular(16),
+                        // 🚀 Swipe to Delete Customer
+                        return Dismissible(
+                          key: Key(customer.id),
+                          direction: DismissDirection.endToStart,
+                          confirmDismiss: (direction) => _showDeleteCustomerDialog(context, customer.name),
+                          onDismissed: (direction) {
+                            ref.read(customerProvider.notifier).deleteCustomer(customer.id);
+                          },
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.only(right: 20),
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade700,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
                           ),
-                          child: const Icon(Icons.delete_forever, color: Colors.white, size: 30),
-                        ),
-                        child: _buildCustomerCard(context, customer),
-                      );
-                    },
-                  );
-                },
+                          child: _buildCustomerCard(context, customer),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -130,15 +146,18 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
     final bool isReceivable = customer.totalBalance >= 0;
     final Color balanceColor = isReceivable ? const Color(0xFF10B981) : Colors.red.shade600;
 
-    return Container(
+    return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.grey.shade200)
       ),
       child: ListTile(
+        // 🚀 DESKTOP FIX: Hover effect added
+        hoverColor: Colors.grey.shade50,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: CircleAvatar(
           backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
           radius: 25,
@@ -149,7 +168,6 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
         ),
         title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         subtitle: Text(customer.phone, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-        // 🚀 YAHAN CHANGE KIYA HAI: Row add ki hai Edit button ke liye
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -174,7 +192,7 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
                 showDialog(
                   context: context,
                   builder: (context) => AddCustomerDialog(
-                    existingCustomer: customer, // Yahan se purana data pass ho raha hai
+                    existingCustomer: customer,
                   ),
                 );
               },
@@ -208,10 +226,11 @@ class _KhataScreenState extends ConsumerState<KhataScreen> {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Contact?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), // 🚀 Rounded dialog shape
+        title: const Text('Delete Contact?', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to delete "$name" and all their transaction records?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(context, true),

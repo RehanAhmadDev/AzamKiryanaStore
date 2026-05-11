@@ -1,3 +1,5 @@
+// lib/features/khata/presentation/pages/receivables_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/state/khata_provider.dart';
@@ -28,11 +30,21 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
+        // 🚀 EXPLICIT BACK BUTTON
+        leading: BackButton(
+          color: Colors.white,
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
         title: const Text(
           'Receivables & Payables',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: const Color(0xFF0F172A),
+        elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
@@ -62,98 +74,106 @@ class _ReceivablesScreenState extends ConsumerState<ReceivablesScreen> {
             return name.contains(_searchQuery.toLowerCase()) || phone.contains(_searchQuery.toLowerCase());
           }).toList();
 
-          return Column(
-            children: [
-              // 📊 Summary Cards
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    _buildSummaryCard(
-                      title: 'Total Receivables',
-                      amount: totalReceivables,
-                      color: const Color(0xFF10B981),
-                      bgColor: const Color(0xFFF0FDF4),
-                      borderColor: const Color(0xFFBBF7D0),
-                      icon: Icons.arrow_downward_rounded,
+          // 🚀 DESKTOP FIX: Center aur ConstrainedBox for Dashboard feel
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                children: [
+                  // 📊 Summary Cards
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        _buildSummaryCard(
+                          title: 'Total Receivables',
+                          amount: totalReceivables,
+                          color: const Color(0xFF10B981),
+                          bgColor: const Color(0xFFF0FDF4),
+                          borderColor: const Color(0xFFBBF7D0),
+                          icon: Icons.arrow_downward_rounded,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildSummaryCard(
+                          title: 'Total Payables',
+                          amount: totalPayables.abs(),
+                          color: const Color(0xFFEF4444),
+                          bgColor: const Color(0xFFFEF2F2),
+                          borderColor: const Color(0xFFFECACA),
+                          icon: Icons.arrow_upward_rounded,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    _buildSummaryCard(
-                      title: 'Total Payables',
-                      amount: totalPayables.abs(),
-                      color: const Color(0xFFEF4444),
-                      bgColor: const Color(0xFFFEF2F2),
-                      borderColor: const Color(0xFFFECACA),
-                      icon: Icons.arrow_upward_rounded,
-                    ),
-                  ],
-                ),
-              ),
-
-              // 🔍 Search Bar
-              Container(
-                color: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: 'Search contacts...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: const Color(0xFFF8FAFC),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: EdgeInsets.zero,
                   ),
-                ),
-              ),
 
-              // 📋 Filtered List
-              Expanded(
-                child: filteredCustomers.isEmpty
-                    ? const Center(child: Text('No matching records found.', style: TextStyle(color: Colors.grey)))
-                    : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filteredCustomers.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                  itemBuilder: (context, index) {
-                    final customer = filteredCustomers[index];
-                    final bool isReceivable = customer.totalBalance > 0;
-                    final Color statusColor = isReceivable ? const Color(0xFF10B981) : (customer.totalBalance < 0 ? const Color(0xFFEF4444) : Colors.grey);
-
-                    return Container(
-                      color: Colors.white,
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
-                          child: Text(customer.name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                        ),
-                        title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(customer.phone, style: const TextStyle(fontSize: 12)),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 15),
-                            ),
-                            Text(
-                              isReceivable ? 'To Receive' : (customer.totalBalance < 0 ? 'To Pay' : 'Settled'),
-                              style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => CustomerDetailScreen(customer: customer)),
-                        ),
+                  // 🔍 Search Bar
+                  Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: TextField(
+                      onChanged: (value) => setState(() => _searchQuery = value),
+                      decoration: InputDecoration(
+                        hintText: 'Search contacts...',
+                        prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: EdgeInsets.zero,
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  ),
+
+                  // 📋 Filtered List
+                  Expanded(
+                    child: filteredCustomers.isEmpty
+                        ? const Center(child: Text('No matching records found.', style: TextStyle(color: Colors.grey)))
+                        : ListView.separated(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: filteredCustomers.length,
+                      separatorBuilder: (context, index) => const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      itemBuilder: (context, index) {
+                        final customer = filteredCustomers[index];
+                        final bool isReceivable = customer.totalBalance > 0;
+                        final Color statusColor = isReceivable ? const Color(0xFF10B981) : (customer.totalBalance < 0 ? const Color(0xFFEF4444) : Colors.grey);
+
+                        // 🚀 DESKTOP FIX: Material widget for proper hover color on ListTile
+                        return Material(
+                          color: Colors.white,
+                          child: ListTile(
+                            hoverColor: Colors.grey.shade50,
+                            leading: CircleAvatar(
+                              backgroundColor: const Color(0xFF0F172A).withOpacity(0.1),
+                              child: Text(customer.name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                            ),
+                            title: Text(customer.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text(customer.phone, style: const TextStyle(fontSize: 12)),
+                            trailing: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  'Rs. ${customer.totalBalance.abs().toStringAsFixed(0)}',
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: statusColor, fontSize: 15),
+                                ),
+                                Text(
+                                  isReceivable ? 'To Receive' : (customer.totalBalance < 0 ? 'To Pay' : 'Settled'),
+                                  style: TextStyle(fontSize: 10, color: statusColor, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => CustomerDetailScreen(customer: customer)),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),

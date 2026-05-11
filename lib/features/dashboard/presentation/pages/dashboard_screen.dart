@@ -19,7 +19,7 @@ import '../../../inventory/presentation/state/inventory_provider.dart';
 
 // Expense Screens & Widgets
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
-import '../../../expenses/presentation/pages/expense_list_screen.dart'; // 🚀 New Import
+import '../../../expenses/presentation/pages/expense_list_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -93,7 +93,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               _buildPremiumHeader(context),
               Expanded(
                 child: customerState.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () => const Center(child: CircularProgressIndicator(color: Color(0xFF10B981))),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
                     return StreamBuilder<Map<String, double>>(
@@ -123,80 +123,86 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             await ref.read(customerProvider.notifier).loadCustomers();
                             await ref.read(inventoryProvider.notifier).fetchProducts();
                           },
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(20.0),
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (lowStockItems.isNotEmpty) ...[
-                                  _buildLowStockAlert(lowStockItems),
-                                  const SizedBox(height: 24),
-                                ],
-
-                                const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                                const SizedBox(height: 12),
-                                Row(
+                          // 🚀 DESKTOP FIX: Main Dashboard Content Constrained and Centered
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: SingleChildScrollView(
+                                padding: const EdgeInsets.all(20.0),
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildActionCard(
-                                      context,
-                                      title: 'Inventory',
-                                      icon: Icons.inventory_2_rounded,
-                                      color: const Color(0xFF6366F1),
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
+                                    if (lowStockItems.isNotEmpty) ...[
+                                      _buildLowStockAlert(lowStockItems),
+                                      const SizedBox(height: 24),
+                                    ],
+
+                                    const Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        _buildActionCard(
+                                          context,
+                                          title: 'Inventory',
+                                          icon: Icons.inventory_2_rounded,
+                                          color: const Color(0xFF6366F1),
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        _buildActionCard(
+                                          context,
+                                          title: 'New Sale',
+                                          icon: Icons.point_of_sale_rounded,
+                                          color: const Color(0xFF10B981),
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        _buildActionCard(
+                                          context,
+                                          title: 'Expense',
+                                          icon: Icons.account_balance_wallet_rounded,
+                                          color: const Color(0xFFEF4444),
+                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 12),
-                                    _buildActionCard(
-                                      context,
-                                      title: 'New Sale',
-                                      icon: Icons.point_of_sale_rounded,
-                                      color: const Color(0xFF10B981),
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
+                                    const SizedBox(height: 32),
+                                    const Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+                                    const SizedBox(height: 16),
+
+                                    _buildGlassCard(
+                                      title: 'Net Profit (After Expenses)',
+                                      amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
+                                      icon: Icons.auto_graph_rounded,
+                                      color: const Color(0xFF8B5CF6),
                                     ),
-                                    const SizedBox(width: 12),
-                                    _buildActionCard(
-                                      context,
-                                      title: 'Expense',
-                                      icon: Icons.account_balance_wallet_rounded,
+                                    const SizedBox(height: 16),
+
+                                    _buildGlassCard(
+                                      title: 'Total Expenses',
+                                      amount: 'Rs. ${totalExpenses.toStringAsFixed(0)}',
+                                      icon: Icons.money_off_rounded,
                                       color: const Color(0xFFEF4444),
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
+                                    ),
+                                    const SizedBox(height: 16),
+
+                                    _buildGlassCard(
+                                      title: 'Total Sales',
+                                      amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
+                                      icon: Icons.trending_up,
+                                      color: const Color(0xFF6366F1),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    _buildGlassCard(
+                                      title: 'Total Wasooli',
+                                      amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
+                                      icon: Icons.call_received_rounded,
+                                      color: const Color(0xFF10B981),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 32),
-                                const Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
-                                const SizedBox(height: 16),
-
-                                _buildGlassCard(
-                                  title: 'Net Profit (After Expenses)',
-                                  amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
-                                  icon: Icons.auto_graph_rounded,
-                                  color: const Color(0xFF8B5CF6),
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildGlassCard(
-                                  title: 'Total Expenses',
-                                  amount: 'Rs. ${totalExpenses.toStringAsFixed(0)}',
-                                  icon: Icons.money_off_rounded,
-                                  color: const Color(0xFFEF4444),
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildGlassCard(
-                                  title: 'Total Sales',
-                                  amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
-                                  icon: Icons.trending_up,
-                                  color: const Color(0xFF6366F1),
-                                ),
-                                const SizedBox(height: 16),
-                                _buildGlassCard(
-                                  title: 'Total Wasooli',
-                                  amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
-                                  icon: Icons.call_received_rounded,
-                                  color: const Color(0xFF10B981),
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         );
@@ -243,22 +249,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildActionCard(BuildContext context, {required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 32),
-              const SizedBox(height: 8),
-              FittedBox(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)))),
-            ],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          hoverColor: Colors.grey.shade100, // 🚀 DESKTOP FIX: Hover Effect added
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+            ),
+            child: Column(
+              children: [
+                Icon(icon, color: color, size: 32),
+                const SizedBox(height: 8),
+                FittedBox(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)))),
+              ],
+            ),
           ),
         ),
       ),
@@ -347,7 +357,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
           }),
-          // 🚀 ADDED: Expense History Navigation
           _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
             Navigator.pop(context);
             Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
@@ -369,6 +378,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFF64748B)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
+      hoverColor: Colors.grey.shade100, // 🚀 DESKTOP FIX: Hover Effect added to drawer
       onTap: onTap,
     );
   }
