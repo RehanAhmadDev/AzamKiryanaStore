@@ -21,6 +21,9 @@ import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
 
+// 🚀 Naya Import
+import 'business_reports_screen.dart';
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -121,7 +124,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           },
                           child: Center(
                             child: ConstrainedBox(
-                              // 🚀 DESKTOP WIDTH FIX: 1200px for a better professional look
                               constraints: const BoxConstraints(maxWidth: 1200),
                               child: SingleChildScrollView(
                                 padding: const EdgeInsets.all(20.0),
@@ -167,11 +169,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                     const SizedBox(height: 16),
 
-                                    _buildGlassCard(
-                                      title: 'Net Profit (After Expenses)',
-                                      amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
-                                      icon: Icons.auto_graph_rounded,
-                                      color: const Color(0xFF8B5CF6),
+                                    // 🚀 REPORT NAVIGATION ADDED HERE
+                                    GestureDetector(
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen())),
+                                      child: _buildGlassCard(
+                                        title: 'Net Profit (Click for Details)',
+                                        amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
+                                        icon: Icons.auto_graph_rounded,
+                                        color: const Color(0xFF8B5CF6),
+                                      ),
                                     ),
                                     const SizedBox(height: 16),
 
@@ -356,6 +362,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
                 }),
+
+                // 🚀 REPORTS DRAWER ITEM ADDED
+                _drawerItem(icon: Icons.analytics_rounded, title: 'Business Reports', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen()));
+                }),
+
                 _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
