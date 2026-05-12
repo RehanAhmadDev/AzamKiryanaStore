@@ -1,3 +1,5 @@
+// lib/features/pos/domain/entities/product_entity.dart
+
 class ProductEntity {
   final String id;
   final String name;
@@ -5,7 +7,11 @@ class ProductEntity {
   final double purchasePrice;
   final double salePrice;
   final int stock;
-  final String? category;
+  final String? categoryId; // 🚀 UPDATE: category ki jagah categoryId
+  final int lowStockThreshold;
+  final bool isActive;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 
   ProductEntity({
     required this.id,
@@ -14,9 +20,16 @@ class ProductEntity {
     required this.purchasePrice,
     required this.salePrice,
     required this.stock,
-    this.category,
+    this.categoryId, // 🚀 UPDATE
+    this.lowStockThreshold = 5,
+    this.isActive = true,
+    required this.createdAt,
+    required this.updatedAt,
   });
 
-  // Stock check karne ke liye helper
-  bool get isOutOfStock => stock <= 0;
+  // Profit nikalne ka formula
+  double get profitMargin => salePrice - purchasePrice;
+
+  // Stock check karne ka formula
+  bool get isLowStock => stock <= lowStockThreshold;
 }

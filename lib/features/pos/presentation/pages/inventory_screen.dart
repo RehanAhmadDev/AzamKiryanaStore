@@ -10,6 +10,9 @@ import '../../../pos/presentation/state/cart_provider.dart';
 import '../../../pos/presentation/widgets/barcode_scanner_widget.dart';
 import '../../../pos/presentation/pages/checkout_screen.dart';
 
+// 🚀 NAYA IMPORT: Category Filter ke liye
+import '../../../category/presentation/state/category_provider.dart';
+
 class InventoryScreen extends ConsumerStatefulWidget {
   final bool isPosMode;
 
@@ -23,6 +26,18 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 
+  // 🚀 NAYA VARIABLE: Category filter ko track karne ke liye
+  String _selectedCategoryId = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    // Screen khulte hi categories ko load karna
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryProvider.notifier).fetchCategories();
+    });
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -31,14 +46,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
 
   Future<void> _refreshProducts() async {
     await ref.read(productsProvider.notifier).fetchProducts();
+    await ref.read(categoryProvider.notifier).fetchCategories(); // Categories bhi refresh karein
   }
 
   @override
   Widget build(BuildContext context) {
-    // 🚀 Theme watch
     final themeState = ref.watch(themeProvider);
     final productsState = ref.watch(productsProvider);
     final cartList = ref.watch(cartProvider);
+
+    // 🚀 Categories ko watch karein
+    final categories = ref.watch(categoryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -53,7 +71,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
         ),
         title: Text(widget.isPosMode ? 'New Sale (POS)' : 'Inventory Master',
             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: themeState.primaryColor, // 🚀 Dynamic
+        backgroundColor: themeState.primaryColor,
         elevation: 0,
         actions: [
           IconButton(
@@ -71,9 +89,11 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200), // 🚀 Desktop flexible width
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Search Bar
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: TextField(
@@ -101,17 +121,70 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   ),
                 ),
               ),
+
+              // 🚀 NAYA UI: Category Filter Buttons (Chips)
+              if (categories.isNotEmpty)
+                Container(
+                  height: 50,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: categories.length + 1, // +1 for 'All Items'
+                    itemBuilder: (context, index) {
+                      final isAll = index == 0;
+                      final category = isAll ? null : categories[index - 1];
+                      final isSelected = isAll ? _selectedCategoryId == 'All' : _selectedCategoryId == category!.id;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(isAll ? 'All Items' : category!.name),
+                          selected: isSelected,
+                          selectedColor: themeState.primaryColor,
+                          backgroundColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.grey.shade700,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected ? themeState.primaryColor : Colors.grey.shade300,
+                            ),
+                          ),
+                          onSelected: (selected) {
+                            setState(() {
+                              _selectedCategoryId = isAll ? 'All' : category!.id;
+                            });
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+              // Product List
               Expanded(
                 child: productsState.when(
                   loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (products) {
+
+                    // 🚀 LOGIC UPDATE: Search aur Category dono se filter karna
                     final filteredProducts = products.where((p) {
-                      return p.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                      final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                      final matchesCategory = _selectedCategoryId == 'All' || p.categoryId == _selectedCategoryId;
+
+                      return matchesSearch && matchesCategory;
                     }).toList();
 
                     if (products.isEmpty) {
-                      return Center(child: Text('No products in stock.', style: const TextStyle(color: Colors.grey, fontSize: 16)));
+                      return const Center(child: Text('No products in stock.', style: TextStyle(color: Colors.grey, fontSize: 16)));
+                    }
+
+                    if (filteredProducts.isEmpty) {
+                      return const Center(child: Text('No products found in this category.', style: TextStyle(color: Colors.grey, fontSize: 16)));
                     }
 
                     return ListView.builder(
@@ -296,7 +369,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                   Text(isEditing ? 'Edit Product' : 'New Product', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 20),
                   Expanded(
-                    child: SingleChildScrollView( // 🚀 Form Scroller Fix
+                    child: SingleChildScrollView(
                       child: Column(
                         children: [
                           _buildField(nameController, 'Product Name', Icons.edit),
@@ -337,6 +410,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                         onPressed: () async {
                           if (nameController.text.isEmpty) return;
+
+                          // 🚀 UPDATE: Missing fields (createdAt, updatedAt, categoryId) fix
                           final newProduct = ProductModel(
                             id: isEditing ? existingProduct.id : '',
                             name: nameController.text,
@@ -344,9 +419,17 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                             purchasePrice: double.tryParse(purchaseController.text) ?? 0.0,
                             salePrice: double.tryParse(saleController.text) ?? 0.0,
                             stock: int.tryParse(stockController.text) ?? 0,
+                            categoryId: isEditing ? existingProduct.categoryId : null,
+                            createdAt: isEditing ? existingProduct.createdAt : DateTime.now(),
+                            updatedAt: DateTime.now(),
                           );
-                          if (isEditing) await ref.read(productsProvider.notifier).updateProduct(newProduct);
-                          else await ref.read(productsProvider.notifier).addProduct(newProduct);
+
+                          if (isEditing) {
+                            await ref.read(productsProvider.notifier).updateProduct(newProduct);
+                          } else {
+                            await ref.read(productsProvider.notifier).addProduct(newProduct);
+                          }
+
                           _refreshProducts();
                           Navigator.pop(context);
                         },

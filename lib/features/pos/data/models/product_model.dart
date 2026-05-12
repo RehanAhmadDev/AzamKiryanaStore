@@ -1,3 +1,5 @@
+// lib/features/pos/data/models/product_model.dart
+
 import '../../domain/entities/product_entity.dart';
 
 class ProductModel extends ProductEntity {
@@ -8,23 +10,31 @@ class ProductModel extends ProductEntity {
     required super.purchasePrice,
     required super.salePrice,
     required super.stock,
-    super.category,
+    super.categoryId, // 🚀 UPDATE
+    super.lowStockThreshold = 5,
+    super.isActive = true,
+    required super.createdAt,
+    required super.updatedAt,
   });
 
-  // Supabase (JSON) se data lene ke liye
+  // Supabase (JSON) se Model mein convert karne ke liye
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     return ProductModel(
-      id: json['id'],
-      name: json['name'],
-      barcode: json['barcode'],
+      id: json['id'] as String,
+      name: json['name'] as String,
+      barcode: json['barcode'] as String?,
       purchasePrice: (json['purchase_price'] as num).toDouble(),
       salePrice: (json['sale_price'] as num).toDouble(),
       stock: json['stock'] as int,
-      category: json['category'],
+      categoryId: json['category_id'] as String?, // 🚀 UPDATE
+      lowStockThreshold: json['low_stock_threshold'] as int? ?? 5,
+      isActive: json['is_active'] as bool? ?? true,
+      createdAt: DateTime.parse(json['created_at']).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at']).toLocal(),
     );
   }
 
-  // Data ko Supabase mein bhejne ke liye (JSON banany ke liye)
+  // App se Supabase (JSON) mein data bhejne ke liye
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -32,7 +42,10 @@ class ProductModel extends ProductEntity {
       'purchase_price': purchasePrice,
       'sale_price': salePrice,
       'stock': stock,
-      'category': category,
+      'category_id': categoryId, // 🚀 UPDATE
+      'low_stock_threshold': lowStockThreshold,
+      'is_active': isActive,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
   }
 }
