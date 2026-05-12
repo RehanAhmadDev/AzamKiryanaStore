@@ -1,6 +1,7 @@
 // lib/features/inventory/presentation/pages/inventory_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 🚀 NAYA IMPORT: Physical Barcode Scanner ke liye
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/theme_provider.dart';
 
@@ -10,7 +11,7 @@ import '../../../pos/presentation/state/cart_provider.dart';
 import '../../../pos/presentation/widgets/barcode_scanner_widget.dart';
 import '../../../pos/presentation/pages/checkout_screen.dart';
 
-// 🚀 NAYA IMPORT: Category Filter ke liye
+// Category Filter ke liye
 import '../../../category/presentation/state/category_provider.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
@@ -25,28 +26,56 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-
-  // 🚀 NAYA VARIABLE: Category filter ko track karne ke liye
   String _selectedCategoryId = 'All';
+
+  // 🚀 NAYA: Physical Scanner ko handle karne ke variables
+  final FocusNode _scannerFocusNode = FocusNode();
+  String _barcodeBuffer = '';
 
   @override
   void initState() {
     super.initState();
-    // Screen khulte hi categories ko load karna
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(categoryProvider.notifier).fetchCategories();
+      // Screen khulte hi scanner ko active karne ke liye focus request
+      if (widget.isPosMode) {
+        _scannerFocusNode.requestFocus();
+      }
     });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scannerFocusNode.dispose(); // 🚀 NAYA: Memory leak se bachne ke liye
     super.dispose();
   }
 
   Future<void> _refreshProducts() async {
     await ref.read(productsProvider.notifier).fetchProducts();
-    await ref.read(categoryProvider.notifier).fetchCategories(); // Categories bhi refresh karein
+    await ref.read(categoryProvider.notifier).fetchCategories();
+  }
+
+  // 🚀 NAYA LOGIC: Physical Scanner ke inputs process karna
+  void _handlePhysicalScan(String scannedCode) {
+    if (!widget.isPosMode) return; // Sirf POS (Sale) mode mein auto-add karein
+
+    ref.read(productsProvider).whenData((products) {
+      try {
+        final product = products.firstWhere((p) => p.barcode == scannedCode);
+        if (product.stock > 0) {
+          _addToCart(context, ref, product);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Out of Stock!', style: TextStyle(color: Colors.white)), backgroundColor: Colors.red),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Product not found!'), backgroundColor: Colors.orange),
+        );
+      }
+    });
   }
 
   @override
@@ -54,165 +83,190 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     final themeState = ref.watch(themeProvider);
     final productsState = ref.watch(productsProvider);
     final cartList = ref.watch(cartProvider);
-
-    // 🚀 Categories ko watch karein
     final categories = ref.watch(categoryProvider);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      appBar: AppBar(
-        leading: BackButton(
-          color: Colors.white,
-          onPressed: () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
+    // 🚀 NAYA: Focus Widget jo Physical Scanner ko sune ga
+    return Focus(
+      autofocus: widget.isPosMode,
+      focusNode: _scannerFocusNode,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.enter) {
+            // Jab scanner barcode poora kar ke Enter marta hai
+            if (_barcodeBuffer.isNotEmpty) {
+              _handlePhysicalScan(_barcodeBuffer);
+              _barcodeBuffer = ''; // Buffer saaf kar diya agli scanning ke liye
             }
-          },
-        ),
-        title: Text(widget.isPosMode ? 'New Sale (POS)' : 'Inventory Master',
-            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: themeState.primaryColor,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync, color: Colors.white),
-            onPressed: _refreshProducts,
+            return KeyEventResult.handled;
+          } else if (event.character != null) {
+            // Numbers ko jama kar raha hai
+            _barcodeBuffer += event.character!;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF1F5F9),
+        appBar: AppBar(
+          leading: BackButton(
+            color: Colors.white,
+            onPressed: () {
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              }
+            },
           ),
-          if (widget.isPosMode)
+          title: Text(widget.isPosMode ? 'New Sale (POS)' : 'Inventory Master',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: themeState.primaryColor,
+          elevation: 0,
+          actions: [
             IconButton(
-              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF10B981)),
-              tooltip: 'Scan & Add to Cart',
-              onPressed: () => _handleOpenScanner(context),
+              icon: const Icon(Icons.sync, color: Colors.white),
+              onPressed: _refreshProducts,
             ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1200),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: (value) => setState(() => _searchQuery = value),
-                  decoration: InputDecoration(
-                    hintText: 'Search product by name...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
-                        : null,
-                    filled: true,
-                    fillColor: Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
+            if (widget.isPosMode)
+              IconButton(
+                icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF10B981)),
+                tooltip: 'Scan & Add to Cart',
+                onPressed: () => _handleOpenScanner(context),
               ),
-
-              // 🚀 NAYA UI: Category Filter Buttons (Chips)
-              if (categories.isNotEmpty)
-                Container(
-                  height: 50,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: categories.length + 1, // +1 for 'All Items'
-                    itemBuilder: (context, index) {
-                      final isAll = index == 0;
-                      final category = isAll ? null : categories[index - 1];
-                      final isSelected = isAll ? _selectedCategoryId == 'All' : _selectedCategoryId == category!.id;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: Text(isAll ? 'All Items' : category!.name),
-                          selected: isSelected,
-                          selectedColor: themeState.primaryColor,
-                          backgroundColor: Colors.white,
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.grey.shade700,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected ? themeState.primaryColor : Colors.grey.shade300,
-                            ),
-                          ),
-                          onSelected: (selected) {
-                            setState(() {
-                              _selectedCategoryId = isAll ? 'All' : category!.id;
-                            });
-                          },
-                        ),
-                      );
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (value) => setState(() => _searchQuery = value),
+                    decoration: InputDecoration(
+                      hintText: 'Search product by name...',
+                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                        icon: const Icon(Icons.clear, color: Colors.grey),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                          // 🚀 NAYA: Search clear karne par wapis scanner activate
+                          if (widget.isPosMode) _scannerFocusNode.requestFocus();
+                        },
+                      )
+                          : null,
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    ),
+                    onTap: () {
+                      // Jab user search pe click kare to scanner buffer empty ho jaye
+                      _barcodeBuffer = '';
                     },
                   ),
                 ),
 
-              // Product List
-              Expanded(
-                child: productsState.when(
-                  loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
-                  error: (err, stack) => Center(child: Text('Error: $err')),
-                  data: (products) {
-
-                    // 🚀 LOGIC UPDATE: Search aur Category dono se filter karna
-                    final filteredProducts = products.where((p) {
-                      final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase());
-                      final matchesCategory = _selectedCategoryId == 'All' || p.categoryId == _selectedCategoryId;
-
-                      return matchesSearch && matchesCategory;
-                    }).toList();
-
-                    if (products.isEmpty) {
-                      return const Center(child: Text('No products in stock.', style: TextStyle(color: Colors.grey, fontSize: 16)));
-                    }
-
-                    if (filteredProducts.isEmpty) {
-                      return const Center(child: Text('No products found in this category.', style: TextStyle(color: Colors.grey, fontSize: 16)));
-                    }
-
-                    return ListView.builder(
-                      itemCount: filteredProducts.length,
-                      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
+                // Category Filter Buttons (Chips)
+                if (categories.isNotEmpty)
+                  Container(
+                    height: 50,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: categories.length + 1, // +1 for 'All Items'
                       itemBuilder: (context, index) {
-                        final product = filteredProducts[index];
-                        final bool outOfStock = product.stock <= 0;
+                        final isAll = index == 0;
+                        final category = isAll ? null : categories[index - 1];
+                        final isSelected = isAll ? _selectedCategoryId == 'All' : _selectedCategoryId == category!.id;
 
-                        return _buildProductCard(product, themeState.primaryColor, outOfStock);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: ChoiceChip(
+                            label: Text(isAll ? 'All Items' : category!.name),
+                            selected: isSelected,
+                            selectedColor: themeState.primaryColor,
+                            backgroundColor: Colors.white,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : Colors.grey.shade700,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              side: BorderSide(
+                                color: isSelected ? themeState.primaryColor : Colors.grey.shade300,
+                              ),
+                            ),
+                            onSelected: (selected) {
+                              setState(() {
+                                _selectedCategoryId = isAll ? 'All' : category!.id;
+                              });
+                              // 🚀 NAYA: Filter select karne par wapis scanner activate
+                              if (widget.isPosMode) _scannerFocusNode.requestFocus();
+                            },
+                          ),
+                        );
                       },
-                    );
-                  },
+                    ),
+                  ),
+
+                // Product List
+                Expanded(
+                  child: productsState.when(
+                    loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
+                    error: (err, stack) => Center(child: Text('Error: $err')),
+                    data: (products) {
+                      final filteredProducts = products.where((p) {
+                        final matchesSearch = p.name.toLowerCase().contains(_searchQuery.toLowerCase());
+                        final matchesCategory = _selectedCategoryId == 'All' || p.categoryId == _selectedCategoryId;
+
+                        return matchesSearch && matchesCategory;
+                      }).toList();
+
+                      if (products.isEmpty) {
+                        return const Center(child: Text('No products in stock.', style: TextStyle(color: Colors.grey, fontSize: 16)));
+                      }
+
+                      if (filteredProducts.isEmpty) {
+                        return const Center(child: Text('No products found in this category.', style: TextStyle(color: Colors.grey, fontSize: 16)));
+                      }
+
+                      return ListView.builder(
+                        itemCount: filteredProducts.length,
+                        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 80),
+                        itemBuilder: (context, index) {
+                          final product = filteredProducts[index];
+                          final bool outOfStock = product.stock <= 0;
+
+                          return _buildProductCard(product, themeState.primaryColor, outOfStock);
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
+        bottomNavigationBar: (widget.isPosMode && cartList.isNotEmpty) ? _buildCartBottomBar(themeState.primaryColor, cartList) : null,
+        floatingActionButton: !widget.isPosMode
+            ? FloatingActionButton.extended(
+          onPressed: () => _showProductFormDialog(context, ref, themeState.primaryColor),
+          label: const Text('Add Product', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          icon: const Icon(Icons.add, color: Colors.white),
+          backgroundColor: themeState.primaryColor,
+        )
+            : null,
       ),
-      bottomNavigationBar: (widget.isPosMode && cartList.isNotEmpty) ? _buildCartBottomBar(themeState.primaryColor, cartList) : null,
-      floatingActionButton: !widget.isPosMode
-          ? FloatingActionButton.extended(
-        onPressed: () => _showProductFormDialog(context, ref, themeState.primaryColor),
-        label: const Text('Add Product', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        icon: const Icon(Icons.add, color: Colors.white),
-        backgroundColor: themeState.primaryColor,
-      )
-          : null,
     );
   }
 
@@ -286,6 +340,8 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                     onPressed: () async {
                       await Navigator.push(context, MaterialPageRoute(builder: (context) => const CheckoutScreen()));
                       _refreshProducts();
+                      // 🚀 NAYA: Checkout se wapis aanay par scanner activate karein
+                      if (widget.isPosMode) _scannerFocusNode.requestFocus();
                     },
                     icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
                     label: const Text('Checkout', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -411,7 +467,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         onPressed: () async {
                           if (nameController.text.isEmpty) return;
 
-                          // 🚀 UPDATE: Missing fields (createdAt, updatedAt, categoryId) fix
                           final newProduct = ProductModel(
                             id: isEditing ? existingProduct.id : '',
                             name: nameController.text,
@@ -443,7 +498,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           ),
         ),
       ),
-    );
+    ).then((_) {
+      // 🚀 NAYA: Dialog band hone ke baad wapis scanner activate
+      if (widget.isPosMode) _scannerFocusNode.requestFocus();
+    });
   }
 
   Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isNumber = false}) {

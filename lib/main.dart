@@ -1,26 +1,43 @@
-// lib/main.dart (Updated & Fixed)
-import 'dart:io';
+// lib/main.dart (Final Update with Auth & Theme Persistence)
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme/theme_provider.dart';
+import 'features/auth/login_screen.dart';
+import 'features/auth/signup_screen.dart';
 import 'features/dashboard/presentation/pages/dashboard_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Supabase Init
   await Supabase.initialize(
     url: 'https://yromirxnpjknpkohsnes.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlyb21pcnhucGprbnBrb2hzbmVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTE2ODQsImV4cCI6MjA5MzAyNzY4NH0.B06CD5Lj4FBeAm3ua5qXRvokYD5UKEDJd1Bw0ntIexA',
   );
 
-  runApp(const ProviderScope(child: AzamKiryanaApp()));
+  // 🚀 NAYA: Login aur Theme dono ko fetch karna
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final int? savedColor = prefs.getInt('app_theme_color'); // Saved color code
+
+  runApp(ProviderScope(
+    overrides: [
+      // 🚀 NAYA: App start hote hi provider mein purana color inject karna
+      if (savedColor != null)
+        themeProvider.overrideWith((ref) => ThemeNotifier()..loadSavedTheme(Color(savedColor))),
+    ],
+    child: AzamKiryanaApp(isLoggedIn: isLoggedIn),
+  ));
 }
 
 class AzamKiryanaApp extends ConsumerWidget {
-  const AzamKiryanaApp({super.key});
+  final bool isLoggedIn;
+  const AzamKiryanaApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -51,8 +68,12 @@ class AzamKiryanaApp extends ConsumerWidget {
           ),
         ),
       ),
-      // 🚀 Builder hata diya taake back/edges na katain
-      home: const DashboardScreen(),
+      home: isLoggedIn ? const DashboardScreen() : const LoginScreen(),
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/signup': (context) => const SignupScreen(),
+        '/dashboard': (context) => const DashboardScreen(),
+      },
     );
   }
 }

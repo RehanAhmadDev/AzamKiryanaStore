@@ -41,7 +41,7 @@ dependencies:
   # --- Offline Database (Local Storage) ---
   sqflite: ^2.3.0
   path_provider: ^2.1.5
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.5
   mobile_scanner: ^5.1.0 # Latest stable version
 
   # --- Dynamic PDF & Receipt Printing ---

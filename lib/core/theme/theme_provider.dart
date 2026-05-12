@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 🚀 NAYA
 
 // --- 🎨 10 Professional Themes List ---
 final List<Color> appThemes = [
@@ -36,9 +37,30 @@ class ThemeState {
 // --- 🚀 Theme Notifier ---
 class ThemeNotifier extends StateNotifier<ThemeState> {
   ThemeNotifier()
-      : super(ThemeState(primaryColor: appThemes[0], fontSize: AppFontSize.medium));
+      : super(ThemeState(primaryColor: appThemes[0], fontSize: AppFontSize.medium)) {
+    _loadTheme(); // 🚀 NAYA: Start hotay hi purana theme load karein
+  }
 
-  void changeColor(Color color) => state = state.copyWith(primaryColor: color);
+  // 🚀 NAYA: main.dart se color receive karne ke liye
+  void loadSavedTheme(Color color) {
+    state = state.copyWith(primaryColor: color);
+  }
+
+  // 🚀 NAYA: Saved color ko disk se uthana
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    final int? colorValue = prefs.getInt('app_theme_color');
+    if (colorValue != null) {
+      state = state.copyWith(primaryColor: Color(colorValue));
+    }
+  }
+
+  // 🚀 UPDATED: Color change karte hi save bhi karna
+  Future<void> changeColor(Color color) async {
+    state = state.copyWith(primaryColor: color);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('app_theme_color', color.value); // Disk mein save kar diya
+  }
 
   void changeFontSize(AppFontSize size) => state = state.copyWith(fontSize: size);
 }
