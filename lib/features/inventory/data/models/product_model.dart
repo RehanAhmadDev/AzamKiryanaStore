@@ -10,7 +10,7 @@ class ProductModel extends ProductEntity {
     required super.purchasePrice,
     required super.salePrice,
     required super.stock,
-    super.category,
+    super.categoryId, // 🚀 UPDATE: category ki jagah categoryId
     super.lowStockThreshold = 5,
     super.isActive = true,
     required super.createdAt,
@@ -26,7 +26,7 @@ class ProductModel extends ProductEntity {
       purchasePrice: (json['purchase_price'] as num).toDouble(),
       salePrice: (json['sale_price'] as num).toDouble(),
       stock: json['stock'] as int,
-      category: json['category'] as String?,
+      categoryId: json['category_id'] as String?, // 🚀 UPDATE: Database ka column name category_id
       lowStockThreshold: json['low_stock_threshold'] as int? ?? 5,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at']).toLocal(),
@@ -42,7 +42,7 @@ class ProductModel extends ProductEntity {
       'purchase_price': purchasePrice,
       'sale_price': salePrice,
       'stock': stock,
-      'category': category,
+      'category_id': categoryId, // 🚀 UPDATE: Database mein category_id bhejna hai
       'low_stock_threshold': lowStockThreshold,
       'is_active': isActive,
       'updated_at': DateTime.now().toUtc().toIso8601String(),

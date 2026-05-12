@@ -3,10 +3,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../../../core/theme/theme_provider.dart'; // 🚀 Theme Provider Import
+import '../../../../core/theme/theme_provider.dart';
 import '../../domain/entities/product_entity.dart';
 import '../state/inventory_provider.dart';
 import 'barcode_scanner_view.dart';
+
+// 🚀 NAYA IMPORTS: Category data ke liye
+import '../../../category/presentation/state/category_provider.dart';
+import '../../../category/domain/entities/category_entity.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
   final ProductEntity? product;
@@ -21,9 +25,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
 
   bool _isLoading = false;
-  String _selectedCategory = 'Grocery';
 
-  final List<String> _categories = ['Grocery', 'Drinks', 'Snacks', 'Bakery', 'Dairy', 'Other'];
+  // 🚀 UPDATE: Naya variable ID save karne ke liye
+  String? _selectedCategoryId;
 
   late TextEditingController _nameController;
   late TextEditingController _barcodeController;
@@ -42,9 +46,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _stockController = TextEditingController(text: widget.product?.stock.toString() ?? '');
     _lowStockController = TextEditingController(text: widget.product?.lowStockThreshold.toString() ?? '5');
 
-    if (widget.product?.category != null && _categories.contains(widget.product!.category)) {
-      _selectedCategory = widget.product!.category!;
-    }
+    // 🚀 UPDATE: Edit mode mein category ID fetch karna
+    _selectedCategoryId = widget.product?.categoryId;
+
+    // Screen khulte hi naye database categories ko load karna
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryProvider.notifier).fetchCategories();
+    });
   }
 
   @override
@@ -87,7 +95,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         salePrice: double.parse(_salePriceController.text.trim()),
         stock: int.parse(_stockController.text.trim()),
         lowStockThreshold: int.parse(_lowStockController.text.trim()),
-        category: _selectedCategory,
+        categoryId: _selectedCategoryId, // 🚀 UPDATE: Database wali category_id
         createdAt: isEditMode ? widget.product!.createdAt : DateTime.now(),
         updatedAt: DateTime.now(),
         isActive: true,
@@ -117,13 +125,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeState = ref.watch(themeProvider); // 🚀 Theme State Watch
+    final themeState = ref.watch(themeProvider);
     final isEditMode = widget.product != null;
+
+    // 🚀 UPDATE: Database se aayi hui categories ko watch karna
+    final categories = ref.watch(categoryProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: themeState.primaryColor, // 🚀 Dynamic Color
+        backgroundColor: themeState.primaryColor,
         elevation: 0,
         title: Text(isEditMode ? 'Edit Product' : 'Add New Item',
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -141,15 +152,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ? Center(child: CircularProgressIndicator(color: themeState.primaryColor))
           : Center(
         child: ConstrainedBox(
-          // 🚀 DESKTOP WIDTH FIX: 1200px for flexible wide layout
           constraints: const BoxConstraints(maxWidth: 1200),
-          child: SingleChildScrollView( // 🚀 Scroller Fix
+          child: SingleChildScrollView(
             child: Column(
               children: [
                 Container(
                   height: 30,
                   decoration: BoxDecoration(
-                    color: themeState.primaryColor, // 🚀 Sync with Header
+                    color: themeState.primaryColor,
                     borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
                   ),
                 ),
@@ -181,7 +191,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                   height: 55,
                                   width: 55,
                                   decoration: BoxDecoration(
-                                    color: themeState.primaryColor, // 🚀 Sync Scanner Icon
+                                    color: themeState.primaryColor,
                                     borderRadius: BorderRadius.circular(15),
                                   ),
                                   child: const Icon(Icons.qr_code_scanner_rounded, color: Colors.white),
@@ -198,7 +208,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             primaryColor: themeState.primaryColor,
                           ),
                           const SizedBox(height: 16),
-                          _buildCategoryDropdown(themeState.primaryColor),
+
+                          // 🚀 UPDATE: Naya dynamic dropdown menu function call
+                          _buildCategoryDropdown(themeState.primaryColor, categories),
                         ]),
 
                         const SizedBox(height: 24),
@@ -263,14 +275,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 18),
-                            backgroundColor: themeState.primaryColor, // 🚀 Sync Save Button
+                            backgroundColor: themeState.primaryColor,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                             elevation: 4,
                           ),
                           onPressed: _saveProduct,
                           child: const Text('Save To Inventory', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
                         ),
-                        const SizedBox(height: 40), // Extra space for scrolling comfort
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),
@@ -302,19 +314,25 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown(Color primaryColor) {
+  // 🚀 UPDATE: Naya dropdown menu jo database se data leta hai
+  Widget _buildCategoryDropdown(Color primaryColor, List<CategoryEntity> categories) {
     return DropdownButtonFormField<String>(
-      value: _selectedCategory,
+      value: _selectedCategoryId,
       decoration: InputDecoration(
-        labelText: 'Category',
+        labelText: 'Category (Optional)',
         labelStyle: TextStyle(color: primaryColor.withOpacity(0.7)),
         prefixIcon: Icon(Icons.category_rounded, color: primaryColor.withOpacity(0.6)),
         filled: true,
         fillColor: const Color(0xFFF1F5F9),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
       ),
-      items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-      onChanged: (val) => setState(() => _selectedCategory = val!),
+      items: categories.map((cat) {
+        return DropdownMenuItem<String>(
+          value: cat.id,
+          child: Text(cat.name),
+        );
+      }).toList(),
+      onChanged: (val) => setState(() => _selectedCategoryId = val),
     );
   }
 

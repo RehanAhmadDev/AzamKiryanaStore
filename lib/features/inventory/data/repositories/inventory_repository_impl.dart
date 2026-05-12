@@ -36,7 +36,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
         purchasePrice: product.purchasePrice,
         salePrice: product.salePrice,
         stock: product.stock,
-        category: product.category,
+        categoryId: product.categoryId, // 🚀 UPDATE: categoryId lagaya gaya hai
         lowStockThreshold: product.lowStockThreshold,
         isActive: product.isActive,
         createdAt: product.createdAt,
@@ -60,7 +60,7 @@ class InventoryRepositoryImpl implements InventoryRepository {
         purchasePrice: product.purchasePrice,
         salePrice: product.salePrice,
         stock: product.stock,
-        category: product.category,
+        categoryId: product.categoryId, // 🚀 UPDATE: categoryId lagaya gaya hai
         lowStockThreshold: product.lowStockThreshold,
         isActive: product.isActive,
         createdAt: product.createdAt,

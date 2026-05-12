@@ -1,3 +1,5 @@
+// lib/features/inventory/presentation/state/inventory_provider.dart
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
@@ -28,18 +30,27 @@ class InventoryNotifier extends StateNotifier<List<ProductEntity>> {
     }
   }
 
-  // 🚀 Updated Method: Manual Map use kiya hai taake toJson ka error khatam ho jaye
+  // 🚀 NAYA FUNCTION: Naya item add karne ke liye
+  Future<void> addProduct(ProductEntity newProduct) async {
+    try {
+      await Supabase.instance.client.from('products').insert(newProduct.toJson());
+      await fetchProducts(); // Naya item add hone ke baad list update karna
+    } catch (e) {
+      print("Error adding product: $e");
+    }
+  }
+
+  // 🚀 FIXED FUNCTION: Ab ye sirf stock nahi, balkay poori item (Name, Price, Category) update karega
   Future<void> updateProduct(ProductEntity updatedProduct) async {
     try {
-      // 1. Database mein sirf stock update karein
+      final data = updatedProduct.toJson();
+      data.remove('id'); // Primary key change nahi karni hoti
+
       await Supabase.instance.client
           .from('products')
-          .update({
-        'stock': updatedProduct.stock,
-      })
+          .update(data)
           .eq('id', updatedProduct.id);
 
-      // 2. State refresh karein taake UI foran update ho jaye
       await fetchProducts();
     } catch (e) {
       print("Error updating product: $e");
