@@ -5,26 +5,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:async/async.dart';
 
 import '../../../../core/theme/theme_provider.dart';
-
 import '../../../khata/presentation/pages/khata_screen.dart';
 import '../../../pos/presentation/pages/inventory_screen.dart';
 import '../../../pos/presentation/pages/invoices_receipts_screen.dart';
 import '../../../khata/presentation/pages/receivables_screen.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
-
 import '../../../inventory/presentation/screens/inventory_screen.dart' as stock;
 import '../../../inventory/presentation/screens/low_stock_screen.dart';
 import '../../../inventory/presentation/state/inventory_provider.dart';
-
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
-
-// 🚀 NAYA IMPORT: Category Screen ke liye
 import '../../../category/presentation/screens/category_screen.dart';
-
 import 'business_reports_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -36,15 +29,28 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
+  // 🚀 OPTIMIZED: Aaj ki sales aur profit ka stream
   Stream<Map<String, double>> _businessStatsStream() {
     final client = Supabase.instance.client;
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
 
-    final salesStream = client.from('sales').stream(primaryKey: ['id']);
-    final expensesStream = client.from('expenses').stream(primaryKey: ['id']);
+    // Hum real-time changes sun rahe hain
+    return client
+        .from('sales')
+        .stream(primaryKey: ['id'])
+        .asyncMap((_) async {
+      // 📊 Aaj ki total sales aur profit fetch karna
+      final salesData = await client
+          .from('sales')
+          .select()
+          .gte('created_at', todayStart);
 
-    return StreamGroup.merge([salesStream, expensesStream]).asyncMap((_) async {
-      final salesData = await client.from('sales').select();
-      final expensesData = await client.from('expenses').select();
+      // 💸 Aaj ke total kharche (Expenses)
+      final expensesData = await client
+          .from('expenses')
+          .select()
+          .gte('date', todayStart);
 
       double totalCash = 0;
       double totalKhata = 0;
@@ -73,6 +79,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         'grossProfit': grossProfit,
         'expenses': totalExpenses,
         'netProfit': grossProfit - totalExpenses,
+        'todaySales': totalCash + totalKhata,
       };
     });
   }
@@ -81,8 +88,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
     final customerState = ref.watch(customerProvider);
-
-    // 🚀 SYNCED THRESHOLD: Ab ye 10 par alert dikhayega
     final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 10);
 
     return Scaffold(
@@ -105,110 +110,104 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
                     return StreamBuilder<Map<String, double>>(
-                      key: UniqueKey(),
                       stream: _businessStatsStream(),
                       builder: (context, snapshot) {
                         final stats = snapshot.data ?? {};
-                        double cashSales = stats['cash'] ?? 0;
-                        double khataSales = stats['khata'] ?? 0;
-                        double totalExpenses = stats['expenses'] ?? 0;
-                        double netProfit = stats['netProfit'] ?? 0;
-                        double totalCombinedSales = cashSales + khataSales;
 
-                        double totalToReceive = 0;
-                        for (var customer in customers) {
-                          if (customer.totalBalance > 0) {
-                            totalToReceive += customer.totalBalance;
-                          }
-                        }
+                        double todaySales = stats['todaySales'] ?? 0;
+                        double netProfit = stats['netProfit'] ?? 0;
+                        double totalExpenses = stats['expenses'] ?? 0;
+
+                        // Total receivables from Khata
+                        double totalToReceive = customers.fold(0, (sum, c) => sum + (c.totalBalance > 0 ? c.totalBalance : 0));
 
                         return RefreshIndicator(
                           onRefresh: () async {
                             await ref.read(customerProvider.notifier).loadCustomers();
                             await ref.read(inventoryProvider.notifier).fetchProducts();
                           },
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 1200),
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.all(20.0),
-                                physics: const AlwaysScrollableScrollPhysics(),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(20.0),
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // 🚀 ALERTS SECTION
+                                if (lowStockItems.isNotEmpty) ...[
+                                  _buildLowStockAlert(lowStockItems, context),
+                                  const SizedBox(height: 24),
+                                ],
+
+                                // 🚀 TODAY'S SUMMARY
+                                Text("Today's Performance", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
+                                const SizedBox(height: 12),
+                                Row(
                                   children: [
-                                    if (lowStockItems.isNotEmpty) ...[
-                                      _buildLowStockAlert(lowStockItems, context),
-                                      const SizedBox(height: 24),
-                                    ],
+                                    _buildSummaryMiniCard('Sales', 'Rs. ${todaySales.toStringAsFixed(0)}', Colors.blue),
+                                    const SizedBox(width: 12),
+                                    _buildSummaryMiniCard('Profit', 'Rs. ${netProfit.toStringAsFixed(0)}', Colors.green),
+                                  ],
+                                ),
 
-                                    Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        _buildActionCard(
-                                          context,
-                                          title: 'Inventory',
-                                          icon: Icons.inventory_2_rounded,
-                                          color: const Color(0xFF6366F1),
-                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        _buildActionCard(
-                                          context,
-                                          title: 'New Sale',
-                                          icon: Icons.point_of_sale_rounded,
-                                          color: const Color(0xFF10B981),
-                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        _buildActionCard(
-                                          context,
-                                          title: 'Expense',
-                                          icon: Icons.account_balance_wallet_rounded,
-                                          color: const Color(0xFFEF4444),
-                                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 32),
-                                    Text('Business Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
-                                    const SizedBox(height: 16),
-
-                                    GestureDetector(
-                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen())),
-                                      child: _buildGlassCard(
-                                        title: 'Net Profit (Click for Details)',
-                                        amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
-                                        icon: Icons.auto_graph_rounded,
-                                        color: const Color(0xFF8B5CF6),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-
-                                    _buildGlassCard(
-                                      title: 'Total Expenses',
-                                      amount: 'Rs. ${totalExpenses.toStringAsFixed(0)}',
-                                      icon: Icons.money_off_rounded,
-                                      color: const Color(0xFFEF4444),
-                                    ),
-                                    const SizedBox(height: 16),
-
-                                    _buildGlassCard(
-                                      title: 'Total Sales',
-                                      amount: 'Rs. ${totalCombinedSales.toStringAsFixed(0)}',
-                                      icon: Icons.trending_up,
+                                const SizedBox(height: 32),
+                                Text('Quick Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    _buildActionCard(
+                                      context,
+                                      title: 'Inventory',
+                                      icon: Icons.inventory_2_rounded,
                                       color: const Color(0xFF6366F1),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen())),
                                     ),
-                                    const SizedBox(height: 16),
-                                    _buildGlassCard(
-                                      title: 'Total Wasooli',
-                                      amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
-                                      icon: Icons.call_received_rounded,
+                                    const SizedBox(width: 12),
+                                    _buildActionCard(
+                                      context,
+                                      title: 'New Sale',
+                                      icon: Icons.point_of_sale_rounded,
                                       color: const Color(0xFF10B981),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen(isPosMode: true))),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    _buildActionCard(
+                                      context,
+                                      title: 'Expense',
+                                      icon: Icons.account_balance_wallet_rounded,
+                                      color: const Color(0xFFEF4444),
+                                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const AddExpenseScreen())),
                                     ),
                                   ],
                                 ),
-                              ),
+
+                                const SizedBox(height: 32),
+                                Text('Financial Insights', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
+                                const SizedBox(height: 16),
+
+                                GestureDetector(
+                                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen())),
+                                  child: _buildGlassCard(
+                                    title: 'Total Net Profit',
+                                    amount: 'Rs. ${netProfit.toStringAsFixed(0)}',
+                                    icon: Icons.auto_graph_rounded,
+                                    color: const Color(0xFF8B5CF6),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildGlassCard(
+                                  title: 'Total Today Expenses',
+                                  amount: 'Rs. ${totalExpenses.toStringAsFixed(0)}',
+                                  icon: Icons.money_off_rounded,
+                                  color: const Color(0xFFEF4444),
+                                ),
+                                const SizedBox(height: 16),
+                                _buildGlassCard(
+                                  title: 'Total Outstanding Wasooli',
+                                  amount: 'Rs. ${totalToReceive.toStringAsFixed(0)}',
+                                  icon: Icons.call_received_rounded,
+                                  color: const Color(0xFF10B981),
+                                ),
+                              ],
                             ),
                           ),
                         );
@@ -225,6 +224,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   // --- UI COMPONENTS ---
+
+  Widget _buildSummaryMiniCard(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildLowStockAlert(List<dynamic> items, BuildContext context) {
     return GestureDetector(
@@ -263,7 +283,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
-          hoverColor: Colors.grey.shade100,
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 20),
             decoration: BoxDecoration(
@@ -275,7 +294,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 Icon(icon, color: color, size: 32),
                 const SizedBox(height: 8),
-                FittedBox(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B)))),
+                FittedBox(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E293B), fontSize: 12))),
               ],
             ),
           ),
@@ -304,7 +323,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Azam Kiryana', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
-              Text('Market Insight', style: TextStyle(fontSize: 13, color: Colors.white70)),
+              Text('Smart Dashboard', style: TextStyle(fontSize: 13, color: Colors.white70)),
             ],
           ),
         ],
@@ -340,6 +359,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  // --- DRAWER ---
+
   Widget _buildSideDrawer(BuildContext context, WidgetRef ref) {
     return Drawer(
       backgroundColor: Colors.white,
@@ -356,7 +377,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     children: [
                       Icon(Icons.storefront, color: Colors.white, size: 40),
                       SizedBox(height: 10),
-                      Text('Main Menu', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('BizGrowth POS', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -369,30 +390,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
                 }),
-
-                // 🚀 NAYA BUTTON: Category Management
                 _drawerItem(icon: Icons.category_rounded, title: 'Category Management', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const CategoryScreen()));
                 }),
-
-                _drawerItem(icon: Icons.warning_amber_rounded, title: 'Low Stock Items', onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const LowStockScreen()));
-                }),
-
                 _drawerItem(icon: Icons.analytics_rounded, title: 'Business Reports', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const BusinessReportsScreen()));
                 }),
-
                 _drawerItem(icon: Icons.history_rounded, title: 'Expense History', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const ExpenseListScreen()));
-                }),
-                _drawerItem(icon: Icons.call_received_rounded, title: 'Receivables (Wasooli)', onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const ReceivablesScreen()));
                 }),
                 _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () {
                   Navigator.pop(context);
@@ -412,7 +420,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return ListTile(
       leading: Icon(icon, color: const Color(0xFF64748B)),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1E293B))),
-      hoverColor: Colors.grey.shade100,
       onTap: onTap,
     );
   }
@@ -447,22 +454,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 );
               },
             ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("Font Size:", style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-              DropdownButton<AppFontSize>(
-                value: themeState.fontSize,
-                onChanged: (val) => ref.read(themeProvider.notifier).changeFontSize(val!),
-                items: const [
-                  DropdownMenuItem(value: AppFontSize.small, child: Text("Small")),
-                  DropdownMenuItem(value: AppFontSize.medium, child: Text("Medium")),
-                  DropdownMenuItem(value: AppFontSize.large, child: Text("Large")),
-                ],
-              ),
-            ],
           ),
         ],
       ),

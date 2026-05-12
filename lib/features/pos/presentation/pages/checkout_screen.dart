@@ -36,8 +36,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return totalProfit;
   }
 
-  Future<void> _processCashPayment() async {
+  // 🚀 NAYA: Bill (Receipt) ka Popup dikhane ke liye
+  void _showReceipt(String type, String? customerName) {
+    final cartItems = ref.read(cartProvider);
+    final totalPrice = ref.read(cartProvider.notifier).totalPrice;
     final themeState = ref.read(themeProvider);
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 60),
+            const SizedBox(height: 16),
+            const Text('Sale Successful!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Divider(height: 30),
+            // Bill details
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Date:'), Text(DateTime.now().toString().substring(0, 16))]),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Type:'), Text(type.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold))]),
+            if (customerName != null) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Customer:'), Text(customerName)]),
+            const Divider(height: 30),
+            // Items list
+            ...cartItems.map((item) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('${item.name} x${item.quantity}'),
+                Text('Rs. ${(item.price * item.quantity).toStringAsFixed(0)}'),
+              ]),
+            )).toList(),
+            const Divider(height: 30),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Text('Grand Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text('Rs. ${totalPrice.toStringAsFixed(0)}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: themeState.primaryColor)),
+            ]),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: themeState.primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              onPressed: () {
+                ref.read(cartProvider.notifier).clearCart();
+                Navigator.pop(context); // Pop dialog
+                Navigator.pop(context); // Pop Checkout screen
+              },
+              child: const Text('Back to Shop', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Future<void> _processCashPayment() async {
     final cartItems = ref.read(cartProvider);
     final totalPrice = ref.read(cartProvider.notifier).totalPrice;
     final totalProfit = _calculateTotalProfit();
@@ -56,17 +111,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         type: 'cash',
       );
 
-      ref.read(cartProvider.notifier).clearCart();
+      _showReceipt('cash', null); // 🚀 Receipt dikhayein
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cash Sale Successful! Profit Recorded.'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        Navigator.pop(context);
-      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -173,17 +219,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         customerId: customer.id,
       );
 
-      ref.read(cartProvider.notifier).clearCart();
+      _showReceipt('khata', customer.name); // 🚀 Receipt dikhayein
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Bill added to ${customer.name}\'s Khata!'),
-            backgroundColor: const Color(0xFFF59E0B),
-          ),
-        );
-        Navigator.pop(context);
-      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -197,7 +234,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🚀 Theme watch
     final themeState = ref.watch(themeProvider);
     final cartList = ref.watch(cartProvider);
     final totalPrice = ref.watch(cartProvider.notifier).totalPrice;
@@ -214,12 +250,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           },
         ),
         title: const Text('Checkout Bill', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-        backgroundColor: themeState.primaryColor, // 🚀 Dynamic
+        backgroundColor: themeState.primaryColor,
         elevation: 0,
       ),
       body: Stack(
         children: [
-          // 🚀 DESKTOP FIX: Responsive width 1200
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 1200),
@@ -304,7 +339,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               Expanded(
                                 child: ElevatedButton.icon(
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: themeState.primaryColor, // 🚀 Dynamic
+                                    backgroundColor: themeState.primaryColor,
                                     padding: const EdgeInsets.symmetric(vertical: 14),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),

@@ -1,9 +1,11 @@
+// lib/features/dashboard/presentation/pages/business_reports_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:pdf/pdf.dart'; // 🚀 Added
-import 'package:pdf/widgets.dart' as pw; // 🚀 Added
-import 'package:printing/printing.dart'; // 🚀 Added
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 import '../../../../core/theme/theme_provider.dart';
 import '../../../inventory/presentation/state/reports_provider.dart';
 
@@ -20,7 +22,16 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
     end: DateTime.now(),
   );
 
-  // 🚀 PDF Generation Logic
+  @override
+  void initState() {
+    super.initState();
+    // Screen khulte hi data fetch karein
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(reportsProvider.notifier).fetchReportData(dateRange: _selectedDateRange);
+    });
+  }
+
+  // 🚀 PDF Generation Logic: Bilkul Professional Layout
   Future<void> _generatePdfReport(ReportData data, Color primaryColor) async {
     final pdf = pw.Document();
     final themeColor = PdfColor.fromInt(primaryColor.value);
@@ -76,7 +87,6 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
       ),
     );
 
-    // 🚀 Opens Print/Save Dialog
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'Business_Report_${DateFormat('dd_MMM').format(_selectedDateRange.start)}.pdf',
@@ -93,10 +103,10 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: themeState.primaryColor,
-        title: const Text('Business Insights & Reports',
+        title: const Text('Business Reports',
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         centerTitle: true,
-        leading: BackButton(color: Colors.white),
+        leading: const BackButton(color: Colors.white),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month, color: Colors.white),
@@ -109,6 +119,7 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
           constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             children: [
+              // Date Range Indicator
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
@@ -119,7 +130,7 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
                     Icon(Icons.date_range, size: 18, color: themeState.primaryColor),
                     const SizedBox(width: 8),
                     Text(
-                      'Showing: ${DateFormat('dd MMM').format(_selectedDateRange.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange.end)}',
+                      'Period: ${DateFormat('dd MMM').format(_selectedDateRange.start)} - ${DateFormat('dd MMM yyyy').format(_selectedDateRange.end)}',
                       style: TextStyle(fontWeight: FontWeight.w600, color: themeState.primaryColor),
                     ),
                   ],
@@ -138,17 +149,13 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
                         const SizedBox(height: 30),
                         _buildBreakdownSection(data, themeState.primaryColor),
                         const SizedBox(height: 40),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            _buildActionButton(
-                                'Download PDF Report',
-                                Icons.picture_as_pdf,
-                                Colors.red.shade700,
-                                    () => _generatePdfReport(data, themeState.primaryColor) // 🚀 Updated Function Call
-                            ),
-                          ],
+                        _buildActionButton(
+                            'Download PDF Report',
+                            Icons.picture_as_pdf,
+                            Colors.red.shade700,
+                                () => _generatePdfReport(data, themeState.primaryColor)
                         ),
+                        const SizedBox(height: 50),
                       ],
                     ),
                   ),
@@ -160,8 +167,6 @@ class _BusinessReportsScreenState extends ConsumerState<BusinessReportsScreen> {
       ),
     );
   }
-
-  // ... (Baaki Widgets wese hi rahenge)
 
   Widget _buildSummaryGrid(ReportData data, Color primaryColor) {
     return LayoutBuilder(
