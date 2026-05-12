@@ -22,6 +22,9 @@ import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
 
+// 🚀 NAYA IMPORT: Category Screen ke liye
+import '../../../category/presentation/screens/category_screen.dart';
+
 import 'business_reports_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -365,6 +368,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _drawerItem(icon: Icons.inventory_2_rounded, title: 'Inventory Management', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const stock.InventoryScreen()));
+                }),
+
+                // 🚀 NAYA BUTTON: Category Management
+                _drawerItem(icon: Icons.category_rounded, title: 'Category Management', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const CategoryScreen()));
                 }),
 
                 _drawerItem(icon: Icons.warning_amber_rounded, title: 'Low Stock Items', onTap: () {
