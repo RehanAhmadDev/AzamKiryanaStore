@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:excel/excel.dart' as excel_pub; // 🚀 NAYA: Alias ke sath taake UI kharab na ho
 import 'package:path_provider/path_provider.dart'; // 🚀 NAYA
 import 'package:share_plus/share_plus.dart'; // 🚀 NAYA
+import 'package:fl_chart/fl_chart.dart'; // 🚀 NAYA: Graph ke liye import
 
 import '../../../../core/theme/theme_provider.dart';
 import '../../../khata/presentation/pages/khata_screen.dart';
@@ -36,7 +37,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
-  // 🚀 NAYA: Excel Export ka Logic (Ab Share nahi karega, direct PC mein Save karega)
+  // ✅ SAFE: Excel Export ka Logic bilkul mehfooz hai
   Future<void> _exportToExcel() async {
     try {
       final client = Supabase.instance.client;
@@ -66,11 +67,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ]);
       }
 
-      // 🚀 FIXED: Ab file seedha PC ke "Documents" folder mein save hogi
+      // File seedha PC ke "Documents" folder mein save hogi
       final directory = await getApplicationDocumentsDirectory();
       final String fileName = "Azam_Kiryana_Stock_${DateTime.now().millisecondsSinceEpoch}.xlsx";
-
-      // Windows ke path ke liye \ use kar rahay hain
       final String path = "${directory.path}\\$fileName";
 
       final List<int>? fileBytes = excel.save();
@@ -79,7 +78,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ..createSync(recursive: true)
           ..writeAsBytesSync(fileBytes);
 
-        // 🚀 NAYA: File save hone ke baad neechay green color ka message aayega
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -100,17 +98,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  Stream<Map<String, double>> _businessStatsStream() {
+  // 🚀 NAYA: 7 din ka data process kar ke Graph ke points banana
+  List<FlSpot> _generateChartSpots(List<dynamic> data) {
+    Map<int, double> dailyTotals = {};
+    final now = DateTime.now();
+
+    // Pichle 7 din ko 0.0 se initialize karna (Purane din se naye din tak)
+    for (int i = 6; i >= 0; i--) {
+      dailyTotals[now.subtract(Duration(days: i)).day] = 0.0;
+    }
+
+    // Database ke data ko dino ke hisaab se jama karna
+    for (var record in data) {
+      final date = DateTime.parse(record['created_at']);
+      if (dailyTotals.containsKey(date.day)) {
+        dailyTotals[date.day] = dailyTotals[date.day]! + (record['total_amount'] as num).toDouble();
+      }
+    }
+
+    // Graph ke points (FlSpot) banana
+    List<FlSpot> spots = [];
+    int index = 0;
+    dailyTotals.forEach((day, amount) {
+      spots.add(FlSpot(index.toDouble(), amount));
+      index++;
+    });
+    return spots;
+  }
+
+  // 🚀 UPDATED: Stream ko dynamic kiya aur 7 din ka data fetch kiya
+  Stream<Map<String, dynamic>> _businessStatsStream() {
     final client = Supabase.instance.client;
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
+    final sevenDaysAgo = now.subtract(const Duration(days: 6)).toIso8601String();
 
     return client
         .from('sales')
         .stream(primaryKey: ['id'])
         .asyncMap((_) async {
+
       final salesData = await client.from('sales').select().gte('created_at', todayStart);
       final expensesData = await client.from('expenses').select().gte('date', todayStart);
+
+      // 🚀 NAYA: Pichle 7 din ki sales ka data graph ke liye
+      final weekSalesData = await client.from('sales').select('total_amount, created_at').gte('created_at', sevenDaysAgo);
 
       double totalCash = 0;
       double totalKhata = 0;
@@ -132,6 +164,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         'expenses': totalExpenses,
         'netProfit': grossProfit - totalExpenses,
         'todaySales': totalCash + totalKhata,
+        'chartSpots': _generateChartSpots(weekSalesData), // 🚀 Graph ke points pass kiye
       };
     });
   }
@@ -161,13 +194,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
                   error: (err, stack) => Center(child: Text('Error: $err')),
                   data: (customers) {
-                    return StreamBuilder<Map<String, double>>(
+                    // 🚀 UPDATED: Map<String, dynamic> kar diya taake List<FlSpot> bhi aa sake
+                    return StreamBuilder<Map<String, dynamic>>(
                       stream: _businessStatsStream(),
                       builder: (context, snapshot) {
                         final stats = snapshot.data ?? {};
-                        double todaySales = stats['todaySales'] ?? 0;
-                        double netProfit = stats['netProfit'] ?? 0;
-                        double totalExpenses = stats['expenses'] ?? 0;
+
+                        // 🚀 UPDATED: Cast safety
+                        double todaySales = (stats['todaySales'] as num?)?.toDouble() ?? 0.0;
+                        double netProfit = (stats['netProfit'] as num?)?.toDouble() ?? 0.0;
+                        double totalExpenses = (stats['expenses'] as num?)?.toDouble() ?? 0.0;
+
+                        // 🚀 NAYA: Graph ke spots nikaalna
+                        final List<FlSpot> spots = stats['chartSpots'] as List<FlSpot>? ?? const [FlSpot(0, 0)];
+
                         double totalToReceive = customers.fold(0, (sum, c) => sum + (c.totalBalance > 0 ? c.totalBalance : 0));
 
                         return RefreshIndicator(
@@ -186,6 +226,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   _buildLowStockAlert(lowStockItems, context),
                                   const SizedBox(height: 24),
                                 ],
+
+                                // 🚀 NAYA: Sales Graph yahan show ho raha hai
+                                Text('Sales Overview (Last 7 Days)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
+                                const SizedBox(height: 12),
+                                _buildSalesChart(spots, themeState.primaryColor),
+                                const SizedBox(height: 32),
 
                                 Text("Today's Performance", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                 const SizedBox(height: 12),
@@ -232,6 +278,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 🚀 NAYA: Graph ko draw karne wala Widget
+  Widget _buildSalesChart(List<FlSpot> spots, Color color) {
+    return Container(
+      height: 220,
+      padding: const EdgeInsets.only(right: 20, left: 10, top: 20, bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: LineChart(
+        LineChartData(
+          gridData: const FlGridData(show: false),
+          titlesData: const FlTitlesData(show: false), // Clean look ke liye titles hide kiye hain
+          borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              color: color,
+              barWidth: 4,
+              isStrokeCapRound: true,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(show: true, color: color.withOpacity(0.1)),
+            ),
+          ],
         ),
       ),
     );
@@ -303,14 +380,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen())); }),
                 _drawerItem(icon: Icons.settings_rounded, title: 'Business Settings', onTap: () { Navigator.pop(context); Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen())); }),
 
-                // 🚀 NAYA: Drawer ke andar Excel Export ka button
                 const Divider(),
                 _drawerItem(
                     icon: Icons.file_download_rounded,
                     title: 'Export Inventory (Excel)',
                     onTap: () {
-                      Navigator.pop(context); // Drawer band karega
-                      _exportToExcel(); // Backup banayega
+                      Navigator.pop(context);
+                      _exportToExcel();
                     }
                 ),
 
