@@ -8,8 +8,11 @@ import '../../domain/entities/product_entity.dart';
 import '../state/inventory_provider.dart';
 import 'product_form_screen.dart';
 import 'barcode_scanner_view.dart';
-// 🚀 Naya Import: Low Stock Screen ke liye
 import 'low_stock_screen.dart';
+
+// 🚀 NAYA IMPORTS: Categories aur History ke liye
+import '../../../category/presentation/state/category_provider.dart';
+import 'stock_history_screen.dart';
 
 class InventoryScreen extends ConsumerStatefulWidget {
   const InventoryScreen({super.key});
@@ -21,6 +24,18 @@ class InventoryScreen extends ConsumerStatefulWidget {
 class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+
+  // 🚀 NAYA VARIABLE: Category filter ke liye
+  String _selectedCategoryId = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    // Screen load hote hi categories fetch karlein
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(categoryProvider.notifier).fetchCategories();
+    });
+  }
 
   @override
   void dispose() {
@@ -59,12 +74,16 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
   Widget build(BuildContext context) {
     final themeState = ref.watch(themeProvider);
     final allProducts = ref.watch(inventoryProvider);
+    final categories = ref.watch(categoryProvider);
 
+    // 🚀 FILTER LOGIC: Search + Category dono check honge
     final filteredProducts = allProducts.where((product) {
       final query = _searchQuery.toLowerCase();
       final nameMatch = product.name.toLowerCase().contains(query);
       final barcodeMatch = product.barcode?.toLowerCase().contains(query) ?? false;
-      return nameMatch || barcodeMatch;
+      final categoryMatch = _selectedCategoryId == 'All' || product.categoryId == _selectedCategoryId;
+
+      return (nameMatch || barcodeMatch) && categoryMatch;
     }).toList();
 
     final stats = _calculateAnalytics(allProducts);
@@ -85,11 +104,20 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
           },
         ),
         actions: [
+          // 🚀 NAYA BUTTON: Stock Audit History
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: Colors.white),
+            tooltip: 'Stock History',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StockHistoryScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.sync_rounded, color: Colors.white),
             onPressed: () {
               _searchController.clear();
-              setState(() => _searchQuery = '');
+              setState(() {
+                _searchQuery = '';
+                _selectedCategoryId = 'All';
+              });
               ref.read(inventoryProvider.notifier).fetchProducts();
             },
           ),
@@ -152,7 +180,7 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
               // Stats Chips
               if (allProducts.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -161,7 +189,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         const SizedBox(width: 12),
                         _buildStatChip('Potential Profit', 'Rs. ${stats['profit'].toStringAsFixed(0)}', const Color(0xFF10B981), Icons.trending_up_rounded, null),
                         const SizedBox(width: 12),
-                        // 🚀 Navigation added to Low Stock Chip
                         _buildStatChip(
                           'Low Stock Items',
                           '${stats['low']} Items',
@@ -171,6 +198,42 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ),
+
+              // 🚀 NAYA UI: Category Filters
+              if (categories.isNotEmpty)
+                Container(
+                  height: 50,
+                  margin: const EdgeInsets.only(top: 12),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: categories.length + 1,
+                    itemBuilder: (context, index) {
+                      final isAll = index == 0;
+                      final category = isAll ? null : categories[index - 1];
+                      final isSelected = isAll ? _selectedCategoryId == 'All' : _selectedCategoryId == category!.id;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(isAll ? 'All Items' : category!.name),
+                          selected: isSelected,
+                          selectedColor: themeState.primaryColor,
+                          backgroundColor: Colors.white,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF64748B),
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: isSelected ? themeState.primaryColor : Colors.grey.shade300),
+                          ),
+                          onSelected: (val) => setState(() => _selectedCategoryId = isAll ? 'All' : category!.id),
+                        ),
+                      );
+                    },
                   ),
                 ),
 
@@ -219,7 +282,6 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
     );
   }
 
-  // 🚀 Added onTap to StatChip for better interaction
   Widget _buildStatChip(String label, String value, Color color, IconData icon, VoidCallback? onTap) {
     return GestureDetector(
       onTap: onTap,

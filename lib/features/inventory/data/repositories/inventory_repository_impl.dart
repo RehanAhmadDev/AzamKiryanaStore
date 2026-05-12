@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/entities/product_entity.dart';
 import '../../domain/repositories/inventory_repository.dart';
 import '../models/product_model.dart';
+import '../models/stock_log_model.dart'; // 🚀 NAYA IMPORT
 
 class InventoryRepositoryImpl implements InventoryRepository {
   final SupabaseClient _supabaseClient;
@@ -13,7 +14,6 @@ class InventoryRepositoryImpl implements InventoryRepository {
   @override
   Future<List<ProductEntity>> getProducts() async {
     try {
-      // Sirf wo products layen jo active hain, aur A-Z tarteeb mein
       final response = await _supabaseClient
           .from('products')
           .select()
@@ -36,15 +36,24 @@ class InventoryRepositoryImpl implements InventoryRepository {
         purchasePrice: product.purchasePrice,
         salePrice: product.salePrice,
         stock: product.stock,
-        categoryId: product.categoryId, // 🚀 UPDATE: categoryId lagaya gaya hai
+        categoryId: product.categoryId,
         lowStockThreshold: product.lowStockThreshold,
         isActive: product.isActive,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
       );
 
-      // Supabase mein naya record insert karna
       await _supabaseClient.from('products').insert(productModel.toJson());
+
+      // 🚀 LOG: Naya product add karne ka log
+      await _saveStockLog(
+        productId: product.id,
+        productName: product.name,
+        change: product.stock,
+        prev: 0,
+        newS: product.stock,
+        reason: 'Initial Stock / New Product',
+      );
     } catch (e) {
       throw Exception('Product add karne mein masla: $e');
     }
@@ -53,6 +62,10 @@ class InventoryRepositoryImpl implements InventoryRepository {
   @override
   Future<void> updateProduct(ProductEntity product) async {
     try {
+      // Pehle purana stock nikalte hain taake log mein farq pata chale
+      final oldData = await _supabaseClient.from('products').select('stock').eq('id', product.id).single();
+      int oldStock = oldData['stock'] as int;
+
       final productModel = ProductModel(
         id: product.id,
         name: product.name,
@@ -60,35 +73,77 @@ class InventoryRepositoryImpl implements InventoryRepository {
         purchasePrice: product.purchasePrice,
         salePrice: product.salePrice,
         stock: product.stock,
-        categoryId: product.categoryId, // 🚀 UPDATE: categoryId lagaya gaya hai
+        categoryId: product.categoryId,
         lowStockThreshold: product.lowStockThreshold,
         isActive: product.isActive,
         createdAt: product.createdAt,
-        updatedAt: DateTime.now(), // Update time current set kar diya
+        updatedAt: DateTime.now(),
       );
 
-      // Supabase mein record update karna
-      await _supabaseClient
-          .from('products')
-          .update(productModel.toJson())
-          .eq('id', product.id);
+      await _supabaseClient.from('products').update(productModel.toJson()).eq('id', product.id);
+
+      // 🚀 LOG: Agar stock change hua hai toh log save karein
+      if (oldStock != product.stock) {
+        await _saveStockLog(
+          productId: product.id,
+          productName: product.name,
+          change: product.stock - oldStock,
+          prev: oldStock,
+          newS: product.stock,
+          reason: 'Manual Update / Restock',
+        );
+      }
     } catch (e) {
       throw Exception('Product update karne mein masla: $e');
     }
   }
 
   @override
-  Future<void> deleteProduct(String id) async {
+  Future<void> reduceStock(String productId, int quantity) async {
     try {
-      // PRO TIP: Hum item ko hamesha ke liye delete nahi kar rahe.
-      // Hum sirf isko 'is_active: false' kar rahe hain (Soft Delete).
-      // Is se aapki purani raseedon (receipts) mein is item ka naam kharab nahi hoga!
-      await _supabaseClient
-          .from('products')
-          .update({'is_active': false})
-          .eq('id', id);
+      final data = await _supabaseClient.from('products').select('name, stock').eq('id', productId).single();
+      int oldStock = data['stock'] as int;
+      String pName = data['name'] as String;
+      int newStock = oldStock - quantity;
+
+      await _supabaseClient.from('products').update({'stock': newStock}).eq('id', productId);
+
+      // 🚀 LOG: Sale ki wajah se stock kam hone ka log
+      await _saveStockLog(
+        productId: productId,
+        productName: pName,
+        change: -quantity,
+        prev: oldStock,
+        newS: newStock,
+        reason: 'Sale (POS)',
+      );
     } catch (e) {
-      throw Exception('Product delete karne mein masla: $e');
+      throw Exception('Stock kam karne mein masla: $e');
     }
+  }
+
+  // 🚀 HELPING FUNCTION: Logs save karne ke liye
+  Future<void> _saveStockLog({
+    required String productId,
+    required String productName,
+    required int change,
+    required int prev,
+    required int newS,
+    required String reason,
+  }) async {
+    final log = {
+      'product_id': productId,
+      'product_name': productName,
+      'change_amount': change,
+      'previous_stock': prev,
+      'new_stock': newS,
+      'reason': reason,
+    };
+    await _supabaseClient.from('stock_logs').insert(log);
+  }
+
+  @override
+  Future<void> deleteProduct(String id) async {
+    await _supabaseClient.from('products').update({'is_active': false}).eq('id', id);
   }
 }
