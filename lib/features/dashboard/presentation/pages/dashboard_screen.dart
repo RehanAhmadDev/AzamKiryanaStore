@@ -2,6 +2,7 @@
 
 import 'dart:ui';
 import 'dart:async';
+import 'package:azam_kiryana_store/features/dashboard/presentation/pages/settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,7 +19,9 @@ import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../expenses/presentation/pages/add_expense_screen.dart';
 import '../../../expenses/presentation/pages/expense_list_screen.dart';
 import '../../../category/presentation/screens/category_screen.dart';
+import '../state/business_provider.dart';
 import 'business_reports_screen.dart';
+
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -29,24 +32,20 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
-  // 🚀 OPTIMIZED: Aaj ki sales aur profit ka stream
   Stream<Map<String, double>> _businessStatsStream() {
     final client = Supabase.instance.client;
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
 
-    // Hum real-time changes sun rahe hain
     return client
         .from('sales')
         .stream(primaryKey: ['id'])
         .asyncMap((_) async {
-      // 📊 Aaj ki total sales aur profit fetch karna
       final salesData = await client
           .from('sales')
           .select()
           .gte('created_at', todayStart);
 
-      // 💸 Aaj ke total kharche (Expenses)
       final expensesData = await client
           .from('expenses')
           .select()
@@ -90,8 +89,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final customerState = ref.watch(customerProvider);
     final lowStockItems = ref.watch(inventoryProvider.notifier).getLowStockItems(threshold: 10);
 
+    // 🚀 NAYA: Settings watch karein
+    final business = ref.watch(businessProvider);
+
     return Scaffold(
-      drawer: _buildSideDrawer(context, ref),
+      drawer: _buildSideDrawer(context, ref, business.storeName), // Store Name pass kiya
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -103,7 +105,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              _buildPremiumHeader(context, themeState.primaryColor),
+              _buildPremiumHeader(context, themeState.primaryColor, business.storeName), // Store Name pass kiya
               Expanded(
                 child: customerState.when(
                   loading: () => Center(child: CircularProgressIndicator(color: themeState.primaryColor)),
@@ -118,13 +120,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         double netProfit = stats['netProfit'] ?? 0;
                         double totalExpenses = stats['expenses'] ?? 0;
 
-                        // Total receivables from Khata
                         double totalToReceive = customers.fold(0, (sum, c) => sum + (c.totalBalance > 0 ? c.totalBalance : 0));
 
                         return RefreshIndicator(
                           onRefresh: () async {
                             await ref.read(customerProvider.notifier).loadCustomers();
                             await ref.read(inventoryProvider.notifier).fetchProducts();
+                            await ref.read(businessProvider.notifier).loadSettings(); // Settings reload
                           },
                           child: SingleChildScrollView(
                             padding: const EdgeInsets.all(20.0),
@@ -132,13 +134,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // 🚀 ALERTS SECTION
                                 if (lowStockItems.isNotEmpty) ...[
                                   _buildLowStockAlert(lowStockItems, context),
                                   const SizedBox(height: 24),
                                 ],
 
-                                // 🚀 TODAY'S SUMMARY
                                 Text("Today's Performance", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: themeState.primaryColor)),
                                 const SizedBox(height: 12),
                                 Row(
@@ -303,7 +303,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildPremiumHeader(BuildContext context, Color headerColor) {
+  // 🚀 FIXED: Dynamic Name Header
+  Widget _buildPremiumHeader(BuildContext context, Color headerColor, String storeName) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
       decoration: BoxDecoration(
@@ -319,11 +320,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Azam Kiryana', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
-              Text('Smart Dashboard', style: TextStyle(fontSize: 13, color: Colors.white70)),
+              Text(storeName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
+              const Text('Smart Dashboard', style: TextStyle(fontSize: 13, color: Colors.white70)),
             ],
           ),
         ],
@@ -361,7 +362,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   // --- DRAWER ---
 
-  Widget _buildSideDrawer(BuildContext context, WidgetRef ref) {
+  Widget _buildSideDrawer(BuildContext context, WidgetRef ref, String storeName) {
     return Drawer(
       backgroundColor: Colors.white,
       child: Column(
@@ -372,12 +373,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 DrawerHeader(
                   decoration: BoxDecoration(color: ref.watch(themeProvider).primaryColor),
-                  child: const Column(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.storefront, color: Colors.white, size: 40),
-                      SizedBox(height: 10),
-                      Text('BizGrowth POS', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Icon(Icons.storefront, color: Colors.white, size: 40),
+                      const SizedBox(height: 10),
+                      Text(storeName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -405,6 +406,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _drawerItem(icon: Icons.receipt_long_rounded, title: 'Invoices & Receipts', onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const InvoicesReceiptsScreen()));
+                }),
+
+                // 🚀 NAYA: Settings Button
+                _drawerItem(icon: Icons.settings_rounded, title: 'Business Settings', onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const SettingsScreen()));
                 }),
 
                 _buildThemeSelector(context, ref),
