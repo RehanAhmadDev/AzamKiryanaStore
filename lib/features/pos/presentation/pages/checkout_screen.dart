@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import '../../../../core/theme/theme_provider.dart';
 
+import '../../../dashboard/presentation/state/business_provider.dart';
 import '../state/cart_provider.dart';
 import '../../../inventory/presentation/state/inventory_provider.dart';
 import '../../../khata/presentation/state/state/khata_provider.dart';
@@ -18,6 +20,61 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _isLoading = false;
+
+  // 🚀 FIXED: Printing Logic (Italic aur Text Size errors nikaal diye hain)
+  Future<void> _printReceipt(String type, String? customerName) async {
+    try {
+      final business = ref.read(businessProvider);
+      final cartItems = ref.read(cartProvider);
+      final total = ref.read(cartProvider.notifier).totalPrice;
+
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(PaperSize.mm58, profile);
+      List<int> bytes = [];
+
+      // Header: Store Name
+      bytes += generator.text(business.storeName,
+          styles: const PosStyles(align: PosAlign.center, bold: true));
+      bytes += generator.text('Smart POS Receipt', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.hr();
+
+      // Info: Date & Type
+      bytes += generator.text('Date: ${DateTime.now().toString().substring(0, 16)}');
+      bytes += generator.text('Type: ${type.toUpperCase()}');
+      if (customerName != null) bytes += generator.text('Customer: $customerName');
+      bytes += generator.hr();
+
+      // Table Header
+      bytes += generator.row([
+        PosColumn(text: 'Item', width: 6),
+        PosColumn(text: 'Qty', width: 2),
+        PosColumn(text: 'Total', width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+
+      // Cart Items
+      for (var item in cartItems) {
+        bytes += generator.row([
+          PosColumn(text: item.name, width: 6),
+          PosColumn(text: '${item.quantity}', width: 2),
+          PosColumn(text: (item.price * item.quantity).toStringAsFixed(0), width: 4, styles: const PosStyles(align: PosAlign.right)),
+        ]);
+      }
+
+      bytes += generator.hr();
+
+      // Total Amount
+      bytes += generator.text('TOTAL: Rs. ${total.toStringAsFixed(0)}',
+          styles: const PosStyles(align: PosAlign.right, bold: true));
+
+      bytes += generator.feed(2);
+      bytes += generator.text('Thank You for Shopping!', styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.cut();
+
+      debugPrint("Receipt Data Ready: ${bytes.length} bytes");
+    } catch (e) {
+      debugPrint("Printing Logic Error: $e");
+    }
+  }
 
   double _calculateTotalProfit() {
     final cartItems = ref.read(cartProvider);
@@ -36,8 +93,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return totalProfit;
   }
 
-  // 🚀 NAYA: Bill (Receipt) ka Popup dikhane ke liye
-  void _showReceipt(String type, String? customerName) {
+  void _showReceiptPopup(String type, String? customerName) {
     final cartItems = ref.read(cartProvider);
     final totalPrice = ref.read(cartProvider.notifier).totalPrice;
     final themeState = ref.read(themeProvider);
@@ -54,12 +110,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: 16),
             const Text('Sale Successful!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const Divider(height: 30),
-            // Bill details
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Date:'), Text(DateTime.now().toString().substring(0, 16))]),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Type:'), Text(type.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold))]),
             if (customerName != null) Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Customer:'), Text(customerName)]),
             const Divider(height: 30),
-            // Items list
             ...cartItems.map((item) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -81,8 +135,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: themeState.primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               onPressed: () {
                 ref.read(cartProvider.notifier).clearCart();
-                Navigator.pop(context); // Pop dialog
-                Navigator.pop(context); // Pop Checkout screen
+                Navigator.pop(context);
+                Navigator.pop(context);
               },
               child: const Text('Back to Shop', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
@@ -111,7 +165,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         type: 'cash',
       );
 
-      _showReceipt('cash', null); // 🚀 Receipt dikhayein
+      await _printReceipt('cash', null);
+      _showReceiptPopup('cash', null);
 
     } catch (e) {
       if (context.mounted) {
@@ -219,7 +274,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         customerId: customer.id,
       );
 
-      _showReceipt('khata', customer.name); // 🚀 Receipt dikhayein
+      await _printReceipt('khata', customer.name);
+      _showReceiptPopup('khata', customer.name);
 
     } catch (e) {
       if (context.mounted) {
